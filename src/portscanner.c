@@ -15,9 +15,10 @@
 // for testing for real (scanme.nmap.org): 45.33.32.156
 
 #define MAX_THREADS         16
-#define MIN_PORT            1                   // port 0 is reserved 
-#define MAX_PORT            (1 << 16) - 1       // 65535
-#define NUM_THREADS(s, e)   ( ( (e-s) /  ( (MAX_PORT + 1) / MAX_THREADS) ) + 1)
+#define MIN_PORT            1                       // port 0 is reserved 
+#define MAX_PORT            (1 << 16) - 1           // 65535            
+#define T_CALC(s,e)         ((e-s) / (1 << 10))     // is it possible to give each thread 1024 ports 
+#define NUM_THREADS(s, e)   ( (T_CALC(s,e) < MAX_THREADS) ? (T_CALC(s,e) + 1) : MAX_THREADS)
 
 #define CON         0 
 #define SYN         1 
@@ -206,26 +207,25 @@ void* multi_scan_start(void* arg){
     user_args* rdonly_uargs = data->rdonly_uargs;
     int port_start = data->port_start; 
     int port_end = data->port_end;
-    int tid = data->tid;  
+     
 
     struct sockaddr_in host_addr;
     int status; 
     host_addr.sin_family = rdonly_uargs->af_fam; 
     host_addr.sin_addr.s_addr = inet_addr(rdonly_uargs->host); 
-    
-
-    // get sd here 
-    // printf("Thread %d has port range: %d - %d\n", tid, port_start, port_end);
 
     int sd = new_tcp_sock(rdonly_uargs);
+
+    // int tid = data->tid; 
+    // printf("tid %d has port range %d - %d\n", tid, port_start, port_end);
 
     for (int i = port_start; i < port_end; i++){
 
         host_addr.sin_port = htons((uint32_t)i);
-
         status = connect(sd, (struct sockaddr*)&host_addr, sizeof(host_addr));   
+
         if (status == 0) printf("Port %d is open\n", i);
-        // printf("Port %d is: %s\n", (uint32_t)i, status == 0 ? "open" : "closed");
+
 
     }
 
@@ -237,7 +237,7 @@ void multi_scan(user_args* uargs){
 
     int port_start, port_end;
 
-    /* default port range to use all unless a range is specified*/
+    /* default to use all unless a range is specified*/
     if (!uargs->prange){
         port_start = MIN_PORT;
         port_end = MAX_PORT; 
@@ -253,7 +253,7 @@ void multi_scan(user_args* uargs){
 
     int n_threads = NUM_THREADS(port_start, port_end);
 
-    printf("number of threads to use: %d\n", n_threads);
+    printf("n threads is: %d\n", n_threads);
 
     pthread_t tpool[n_threads];
     t_data* data = (t_data*)malloc(n_threads * sizeof(t_data));
@@ -286,8 +286,6 @@ void multi_scan(user_args* uargs){
     free(data); 
     data = NULL; 
 
-    printf("successful exit\n");
-
 }
 
 int main(int argc, char* argv[]){
@@ -301,11 +299,11 @@ int main(int argc, char* argv[]){
     memset(&uargs, 0, sizeof(uargs));
     handle_cli_args(argc, argv, &uargs);
 
-    // setup options for kind of scan with sock_args
-    config_scan_sock(&uargs);
+    config_scan_sock(&uargs); /* setup options for kind of scan with sock_args */
 
-    // check given port for host  
-    if (uargs.port != 0){
+    printf("uargs.port: %ld\n", uargs.port);
+    if (uargs.port){ /* single port specified*/
+
         printf("==Scanning==\nHOST: %s\nPORT: %ld\n============\n", uargs.host, uargs.port);
         single_scan(&uargs); 
         return 0; 
