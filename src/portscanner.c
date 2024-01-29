@@ -215,7 +215,7 @@ void* multi_scan_start(void* arg){
     
 
     // get sd here 
-    printf("Thread %d has port range: %d - %d\n", tid, port_start, port_end);
+    // printf("Thread %d has port range: %d - %d\n", tid, port_start, port_end);
 
     int sd = new_tcp_sock(rdonly_uargs);
 
@@ -237,24 +237,23 @@ void multi_scan(user_args* uargs){
 
     int port_start, port_end;
 
+    /* default port range to use all unless a range is specified*/
     if (!uargs->prange){
         port_start = MIN_PORT;
         port_end = MAX_PORT; 
         
     } else {
         port_end = uargs->prange & 0xFFFF;
-        port_start = uargs->prange >> 16; 
-
-        if (port_end <= port_start) force_fail("port range is incorrect\n");
-
+        port_start = (unsigned int) uargs->prange >> 16; 
     }
 
     printf("==Scanning==\nHOST: %s\nPORTS: %d - %d\n============\n", uargs->host, port_start, port_end);
+
+    if (port_end <= port_start || port_end < 1 || port_start < 1) force_fail("port range is incorrect\n");
+
     int n_threads = NUM_THREADS(port_start, port_end);
 
     printf("number of threads to use: %d\n", n_threads);
-
-    // exit(0);
 
     pthread_t tpool[n_threads];
     t_data* data = (t_data*)malloc(n_threads * sizeof(t_data));
@@ -277,18 +276,13 @@ void multi_scan(user_args* uargs){
                                     : (port_start + ( portions * (i+1) ));
         }
 
-        // printf("Thread %d has range: %d - %d\n", i, data[i].port_start, data[i].port_end);
-        printf("Thread %d port range calc'd\n", i);
-
         data[i].rdonly_uargs = uargs; 
 
         pthread_create(&tpool[i], NULL, multi_scan_start, &data[i]);
     }
 
-    for (i = 0; i < n_threads; i++)
-        pthread_join(tpool[i], NULL);
+    for (i = 0; i < n_threads; i++) pthread_join(tpool[i], NULL);
   
-
     free(data); 
     data = NULL; 
 
@@ -310,14 +304,13 @@ int main(int argc, char* argv[]){
     // setup options for kind of scan with sock_args
     config_scan_sock(&uargs);
 
-    
     // check given port for host  
     if (uargs.port != 0){
         printf("==Scanning==\nHOST: %s\nPORT: %ld\n============\n", uargs.host, uargs.port);
         single_scan(&uargs); 
         return 0; 
 
-    } else { /* scan all ports or ports within range */
+    } else { /* scan all within port range */
 
         multi_scan(&uargs);
     }
