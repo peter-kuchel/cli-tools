@@ -46,11 +46,21 @@ also defined in <netdb.h> as
 #define RTA_DATA_ADDR(fam, in_buf, len, struct_type, attr) ( inet_ntop(fam, (struct_type*)RTA_DATA(attr) , in_buf, len) ) 
 
 
+#define USER_IFA_CACHEINFO  0x1
+#define USER_IFA_FLAGS      0x2
 
 typedef struct {
     struct nlmsghdr hdr;                        // payload header for netlink 
     struct rtgenmsg gen;                        // General form of address family dependent message.
 } nl_req_t; 
+
+
+typedef struct {
+    int user_flags; 
+} user_f;
+
+
+static user_f uf; 
 
 
 void get_dns_info(){
@@ -75,7 +85,7 @@ void get_dns_info(){
             exit(EXIT_FAILURE); 
         }
 
-        // use systemd or resolvectl to attempt to find 
+        // use what systemd or resolvectl do to attempt to find in the case of the local dns resolver 
         if (strncmp(inet4_addr, LOCAL_DNS_RESOLVER, sizeof(LOCAL_DNS_RESOLVER)) == 0){
             printf("local dns resolver found instead: %s\n", LOCAL_DNS_RESOLVER);
         } else {
@@ -182,7 +192,8 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
 
                 printf("\taddress scope: %d\n", ifaddr->ifa_scope);
 
-                handle_ifaflags(ifaddr->ifa_flags);
+                if (uf.user_flags & USER_IFA_FLAGS)
+                    handle_ifaflags(ifaddr->ifa_flags);
                 break;
 
             case IFA_LOCAL:         // only for ipv4 (?)
@@ -224,7 +235,8 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
                 break;
 
             case IFA_CACHEINFO:
-                handle_cacheinfo(attr);
+                if (uf.user_flags & USER_IFA_CACHEINFO) 
+                    handle_cacheinfo(attr);
                 break; 
 
             case IFA_MULTICAST:
@@ -258,10 +270,8 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
             default:
                 break; 
         }
-        // printf("\n");
         
     }
-    // printf("\n");
 
 }
 
@@ -285,10 +295,9 @@ void set_netlink_req(nl_req_t* nl_req, __u16 nlmsg_t){
     // nl_req->hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
     nl_req->hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg));
     nl_req->hdr.nlmsg_type = nlmsg_t;
-    // nl_req->hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
-    nl_req->hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ROOT;
+    nl_req->hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+    // nl_req->hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ROOT;
                   
-    // nl_req->hdr.nlmsg_pid = pid;            /* the pid of the sending process */
     nl_req->gen.rtgen_family = AF_PACKET;   /*  no preferred AF so that we can get all interfaces from the kernel routing table */ 
 }
 
@@ -438,6 +447,7 @@ void with_nl(){
     
 }
 
+// old method for getting info but still here for the sake of it
 void determine_sa(struct sockaddr* sa){
     struct sockaddr_in*     ipv4_sa;
     struct sockaddr_in6*    ipv6_sa;
@@ -472,6 +482,7 @@ void determine_sa(struct sockaddr* sa){
     }
 }
 
+// old method for getting info but still here for the sake of it
 void with_ifaddrs(){
     struct ifaddrs *curr_ifa, *init_ifa;
 
@@ -517,29 +528,24 @@ void with_ifaddrs(){
     freeifaddrs(init_ifa);          // free ifa ptr 
 }
 
-int main(){
+int main(int argc, char** argv){
 
-    // argc--; argv++; 
-    // int choice = 0;
 
-    // while (argc){
-    //     if (!strcmp(*argv, "-ntl")){
-    //         choice = 1; 
-    //     } else if (!strcmp(*argv, "-ifa")){
-    //         choice = 0; /* default choice*/
-    //     } else {
-    //         perror("Unrecognized flag, see usage:");
-    //         exit(EXIT_FAILURE);
-    //     }
+    argc--; argv++; 
+    uf.user_flags = 0; 
 
-    //     argc--; argv++; 
-    // }
+    while (argc){
+        if (!strcmp(*argv, "-f")){
+            uf.user_flags |= USER_IFA_FLAGS; 
+        } else if (!strcmp(*argv, "-c")){
+            uf.user_flags |= USER_IFA_CACHEINFO; 
+        } else {
+            perror("Unrecognized flag, see usage:");
+            exit(EXIT_FAILURE);
+        }
 
-    // if (choice){
-    //     with_nl();
-    // } else {
-    //     with_ifaddrs();
-    // }
+        argc--; argv++; 
+    }
     
     with_nl();
     // get_dns_info();  // might try to incorporate this later on , rn IP info is enough
