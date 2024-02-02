@@ -40,9 +40,6 @@ also defined in <netdb.h> as
 #define IFLIST_RESP_BUFF_SIZE   	(1 << 13)               // large buffer size (8192 )
 
 
-                    // struct in_addr* mc_sa = (struct in_addr*)RTA_DATA(attr); 
-                    // char mcaddr[INET_ADDRSTRLEN];
-                    // inet_ntop(AF_INET, mc_sa, mcaddr, INET_ADDRSTRLEN);
 #define RTA_DATA_ADDR(fam, in_buf, len, struct_type, attr) ( inet_ntop(fam, (struct_type*)RTA_DATA(attr) , in_buf, len) ) 
 
 
@@ -102,11 +99,10 @@ void netlink_err_msg(){
 
 void inet_netmask(__u8 prefixlen){
 
-    __u8 total_btyes = 32; 
     struct in_addr mask_sa; 
     char mask[INET_ADDRSTRLEN];
 
-    uint32_t n = 0xFFFFFFFF << (total_btyes - prefixlen); 
+    uint32_t n = 0xFFFFFFFF << (32 - prefixlen); 
     mask_sa.s_addr = (in_addr_t)ntohl(n);
     inet_ntop(AF_INET, &mask_sa, mask, INET_ADDRSTRLEN);
 
@@ -173,7 +169,7 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
 
                 
                 } else {
-                    printf("[ ipv4 ] < link index { %d } >\n\tinterface ddress: ", ifaddr->ifa_index);
+                    printf("[ ipv4 ] < link index { %d } >\n\tinterface address: ", ifaddr->ifa_index);
 
                     struct in_addr* in_sa = (struct in_addr*)RTA_DATA(attr); 
                     char addr4[INET_ADDRSTRLEN];
@@ -254,7 +250,8 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
                 }
                 break;
 
-            // case IFA_MAX:        // not sure what this is tbh
+            /* not sure what this is tbh */
+            // case IFA_MAX:        
             //     ;
             //     char* data = (char*)RTA_DATA(attr);
             //     printf("\tIFA_MAX: ");
@@ -270,9 +267,7 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
             default:
                 break; 
         }
-        
     }
-
 }
 
 /*
@@ -284,7 +279,7 @@ the NLMSG_LENGTH macro makes an alignment calculation and also accounts for the 
 Passing the size of the payload only, where the result will be the aligned size of the whole netlink message
 
 :: nlmsg_flags ::
-NLM_F_REQUEST because we are sending a request NLM_F_DUMP is a convienence macro equivalent to (NLM_F_ROOT|NLM_F_MATCH), where 
+NLM_F_REQUEST because we are sending a request, NLM_F_DUMP is a convienence macro equivalent to (NLM_F_ROOT|NLM_F_MATCH), where 
 NLM_F_ROOT returns the complete table instead of a single entry. NLM_F_MATCH all entries matching criteria passed in message content 
 (Apparently not implemented yet) according to the man
 
@@ -292,11 +287,10 @@ NLM_F_ROOT returns the complete table instead of a single entry. NLM_F_MATCH all
 */
 
 void set_netlink_req(nl_req_t* nl_req, __u16 nlmsg_t){
-    // nl_req->hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
+    
     nl_req->hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg));
     nl_req->hdr.nlmsg_type = nlmsg_t;
     nl_req->hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
-    // nl_req->hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ROOT;
                   
     nl_req->gen.rtgen_family = AF_PACKET;   /*  no preferred AF so that we can get all interfaces from the kernel routing table */ 
 }
@@ -325,7 +319,6 @@ int bind_nl_sock(){
     memset(&nl_sa, 0, sa_size);
 
     nl_sa.nl_family = AF_NETLINK;
-    // nl_sa.nl_pid = pid;              // already 0 
 
     if (bind(sfd, (struct sockaddr*)&nl_sa, sa_size) < 0){
         perror("bind()"); 
@@ -338,6 +331,15 @@ int bind_nl_sock(){
     return sfd; 
 }
 
+/*
+TODO:
+    -- make multiple msg requests to the kernal
+            -- GETLINK followed by GETADDR for same if indexes 
+            -- or make this as a seperate tool ( v2 ?)
+
+
+*/
+
 
 
 void with_nl(){
@@ -347,8 +349,6 @@ void with_nl(){
     // https://man7.org/linux/man-pages/man7/netlink.7.html
     // https://gist.github.com/Yawning/c70d804d4b8ae78cc698
 
-
-    // pid_t pid = 0;                  // to access the kernel 
               
     int sfd = bind_nl_sock();
 
@@ -364,8 +364,7 @@ void with_nl(){
     memset(&rtnl_req, 0, sizeof(rtnl_req)); 
 
     rt_addr.nl_family = AF_NETLINK;                      /* fill-in kernel af (destination) */
-
-    // set_netlink_req(&req, pid, RTM_GETLINK);  
+  
     set_netlink_req(&req, RTM_GETADDR);
     req.hdr.nlmsg_seq = 1;                              // seq starting at 1           
 
@@ -382,7 +381,7 @@ void with_nl(){
     }
 
     
-    int end = 0, err = 0; 
+    int nlmsg_done = 0; 
 
     /* hold the resp from the kernal in here */
     char getaddr_resp[IFLIST_RESP_BUFF_SIZE]; 
@@ -401,49 +400,39 @@ void with_nl(){
         iov_res.iov_base = getaddr_resp; 
         iov_res.iov_len = IFLIST_RESP_BUFF_SIZE; 
 
-        rtnl_resp.msg_iov = &iov_res; 
-        rtnl_resp.msg_iovlen = 1; 
-        rtnl_resp.msg_name = &rt_addr; 
-        rtnl_resp.msg_namelen = sizeof(rt_addr); 
+        set_nl_gen_msghdr(&rtnl_resp, &iov_res, &rt_addr);
 
         size_t bytes_recv = recvmsg(sfd, &rtnl_resp, 0);
 
         /* pointer to current part */
-        struct nlmsghdr* msg_ptr; 
+        struct nlmsghdr* resp_hdr; 
 
         /* cast buffer to nlmsghdr to access attributes */
-        for (msg_ptr = (struct nlmsghdr *) getaddr_resp; NLMSG_OK(msg_ptr, bytes_recv); msg_ptr = NLMSG_NEXT(msg_ptr, bytes_recv)){
+        for (resp_hdr = (struct nlmsghdr *) getaddr_resp; NLMSG_OK(resp_hdr, bytes_recv); resp_hdr = NLMSG_NEXT(resp_hdr, bytes_recv)){
     
-            switch(msg_ptr->nlmsg_type){
+            switch(resp_hdr->nlmsg_type){
 
                 case NLMSG_DONE:    // 0x3
-                    end++;  
+                    nlmsg_done++;  
                     break;
                 
                 case NLMSG_ERROR:
-                    err++; end++;  
                     perror("NLMSG_ERROR");
                     exit(EXIT_FAILURE);
                     
-
-                case NLMSG_ADDR:    // 0x1 
-                    rtnl_print_addr_info(msg_ptr);
+                case NLMSG_ADDR:    // 20
+                    rtnl_print_addr_info(resp_hdr);
                     break;
 
                 default:
-                    printf("message type %d, length %d\n", msg_ptr->nlmsg_type, msg_ptr->nlmsg_len);
+                    printf("message type %d, length %d\n", resp_hdr->nlmsg_type, resp_hdr->nlmsg_len);
                     break;
             }
         }   
         printf("\n");
 
 
-    }while (!end);
-
-    if (err){
-        perror("NLMSG_ERROR");
-        exit(EXIT_FAILURE);
-    }
+    }while (!nlmsg_done);
     
 }
 
