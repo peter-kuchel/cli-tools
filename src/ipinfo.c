@@ -40,6 +40,12 @@ also defined in <netdb.h> as
 #define IFLIST_RESP_BUFF_SIZE   	(1 << 13)               // large buffer size (8192 )
 
 
+                    // struct in_addr* mc_sa = (struct in_addr*)RTA_DATA(attr); 
+                    // char mcaddr[INET_ADDRSTRLEN];
+                    // inet_ntop(AF_INET, mc_sa, mcaddr, INET_ADDRSTRLEN);
+#define RTA_DATA_ADDR(fam, in_buf, len, struct_type, attr) ( inet_ntop(fam, (struct_type*)RTA_DATA(attr) , in_buf, len) ) 
+
+
 
 typedef struct {
     struct nlmsghdr hdr;                        // payload header for netlink 
@@ -97,6 +103,35 @@ void inet_netmask(__u8 prefixlen){
     printf("\tnetmask: %s\n", mask);
 }
 
+void handle_ifaflags(__u8 flags){
+
+    char tt[] = "\t\t"; 
+
+    printf("\tflags:\n");
+    if (flags & IFA_F_SECONDARY)        printf("%s%s\n", tt, "secondary");
+    if (flags & IFA_F_TEMPORARY)        printf("%s%s\n", tt, "temporary");
+    if (flags & IFA_F_NODAD)            printf("%s%s\n", tt, "no duplicate address detection");
+    if (flags & IFA_F_OPTIMISTIC)       printf("%s%s\n", tt, "optimistic");
+    if (flags & IFA_F_DADFAILED)        printf("%s%s\n", tt, "duplicate address detection failed");
+    if (flags & IFA_F_HOMEADDRESS)      printf("%s%s\n", tt, "home address");
+    if (flags & IFA_F_DEPRECATED)       printf("%s%s\n", tt, "deprecated");
+    if (flags & IFA_F_TENTATIVE)        printf("%s%s\n", tt, "tentative");
+    if (flags & IFA_F_PERMANENT)        printf("%s%s\n", tt, "permanent");
+
+}
+
+void handle_cacheinfo(struct rtattr* attr){
+    struct ifa_cacheinfo* cacheinfo = (struct ifa_cacheinfo*)RTA_DATA(attr);
+    char tt[] = "\t\t";
+    printf("\tcache info:\n");
+
+    printf("%sprefered: %d\n", tt, cacheinfo->ifa_prefered);
+    printf("%svalid: %d\n", tt, cacheinfo->ifa_valid);
+    printf("%screated timestamp: %d (hundredths of seconds)\n", tt, cacheinfo->cstamp);
+    printf("%supdated timestamp: %d (hundredths of seconds)\n", tt, cacheinfo->tstamp);
+    
+}
+
 void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
 
     struct ifaddrmsg* ifaddr; 
@@ -113,7 +148,7 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
             case IFA_ADDRESS:
                  
                 if (ifaddr->ifa_family == AF_INET6){ 
-                    printf("[ ipv6 ] < link index { %d } >\n\tInterface Address: ", ifaddr->ifa_index);
+                    printf("[ ipv6 ] < link index { %d } >\n\tinterface address: ", ifaddr->ifa_index);
                     struct in6_addr* in6_sa = (struct in6_addr* )RTA_DATA(attr);
 
                     char addr6[INET6_ADDRSTRLEN];
@@ -128,7 +163,7 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
 
                 
                 } else {
-                    printf("[ ipv4 ] < link index { %d } >\n\tInterfaceAddress: ", ifaddr->ifa_index);
+                    printf("[ ipv4 ] < link index { %d } >\n\tinterface ddress: ", ifaddr->ifa_index);
 
                     struct in_addr* in_sa = (struct in_addr*)RTA_DATA(attr); 
                     char addr4[INET_ADDRSTRLEN];
@@ -146,6 +181,8 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
                 if (ifaddr->ifa_family == AF_INET) inet_netmask(prefixlen);
 
                 printf("\taddress scope: %d\n", ifaddr->ifa_scope);
+
+                handle_ifaflags(ifaddr->ifa_flags);
                 break;
 
             case IFA_LOCAL:         // only for ipv4 (?)
@@ -184,18 +221,39 @@ void rtnl_print_addr_info(struct nlmsghdr* _nlmsghdr){
                     printf("%s\n", ac6addr);
                 }
                 
-                
                 break;
 
             case IFA_CACHEINFO:
-                printf("\tcache info:\n");
+                handle_cacheinfo(attr);
                 break; 
 
-            case 8:
-                if (__IFA_MAX == 8){
-                    printf(" here in 8");
+            case IFA_MULTICAST:
+                printf("\tmulticast: ");
+                if (ifaddr->ifa_family == AF_INET){
+                    char mcaddr[INET_ADDRSTRLEN];
+                    RTA_DATA_ADDR(AF_INET, mcaddr, INET_ADDRSTRLEN, struct in_addr, attr);
+
+                    printf("%s\n", mcaddr);
+                } else {
+                    char mc6addr[INET6_ADDRSTRLEN];
+                    RTA_DATA_ADDR(AF_INET6, mc6addr, INET6_ADDRSTRLEN, struct in6_addr, attr);
+
+                    printf("%s\n", mc6addr);
                 }
-                break; 
+                break;
+
+            // case IFA_MAX:        // not sure what this is tbh
+            //     ;
+            //     char* data = (char*)RTA_DATA(attr);
+            //     printf("\tIFA_MAX: ");
+            //     // printf("");
+            //     for (int i = 0; i < 32; i++){
+            //         // if (data[i] == '\0'){
+            //         //     printf("i ended at: %d\n", i);
+            //         // }
+            //         printf("%x ", data[i]);
+            //     }
+            //     printf("\n");
 
             default:
                 break; 
