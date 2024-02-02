@@ -1,15 +1,20 @@
 
-SRC_DIR = ./src
-BIN_DIR = ./bin
+SRC_DIR = src
+BIN_DIR = bin
 
-all: port-scanner test-ipv6 stego-pic 
+CFLAGS = -Wall -Wextra -std=gnu99
 
+all: desc port-scanner ip-info stego-pic 
+
+desc: 
+	gcc -o tooldesc $(SRC_DIR)/tooldesc.c 
+	
 port-scanner: 
-	gcc -Wall -pthread -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
+	gcc $(CFLAGS) -pthread -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
 
-test-ipv6: 
-	gcc -Wall -o $(BIN_DIR)/testipv6 $(SRC_DIR)/testipv6.c 
+ip-info: 
+	gcc $(CFLAGS) -o $(BIN_DIR)/ipinfo $(SRC_DIR)/ipinfo.c
 
 stego-pic:
-	gcc -Wall -o $(BIN_DIR)/stego $(SRC_DIR)/stego.c
+	gcc $(CFLAGS) -o $(BIN_DIR)/stego $(SRC_DIR)/stego.c
 
