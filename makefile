@@ -2,19 +2,26 @@
 SRC_DIR = src
 BIN_DIR = bin
 
+CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99
 
-all: desc port-scanner ip-info stego-pic 
+COMMONS = $(SRC_DIR)/common.c
+IMGS	= $(SRC_DIR)/png.c 
+
+all: desc port-scanner ip-info png-inspector stego-pic 
 
 desc: 
-	gcc -o tooldesc $(SRC_DIR)/tooldesc.c 
+	$(CC) -o tooldesc $(SRC_DIR)/tooldesc.c  
 	
 port-scanner: 
-	gcc $(CFLAGS) -pthread -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
+	$(CC) $(CFLAGS) -pthread -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
 
 ip-info: 
-	gcc $(CFLAGS) -o $(BIN_DIR)/ipinfo $(SRC_DIR)/ipinfo.c
+	$(CC) $(CFLAGS) -o $(BIN_DIR)/ipinfo $(SRC_DIR)/ipinfo.c
 
-stego-pic:
-	gcc $(CFLAGS) -o $(BIN_DIR)/stego $(SRC_DIR)/stego.c
+png-inspector:
+	$(CC) $(CFLAGS) $(IMGS) -o $(BIN_DIR)/pnginspect $(SRC_DIR)/pnginspect.c
+
+stego-pic: 
+	$(CC) $(CFLAGS) $(COMMONS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stego
 
