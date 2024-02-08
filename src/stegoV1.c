@@ -140,12 +140,7 @@ void copy_png_data(FILE* png, FILE* wpng){
           /* read the next chunk */ 
           fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
 
-          long pos2 = ftell(png);
-
-          printf("pos after read: %ld\n", pos2);
-
           png_chdr = htobe32( *((uint32_t*)(hdr + 4)));
-
           png_csz  = htobe32( *( (uint32_t*)hdr ));
 
           uint8_t data[png_csz + PNG_CHSZ + PNG_CRCS]; 
@@ -155,8 +150,6 @@ void copy_png_data(FILE* png, FILE* wpng){
           /* the fread call automatically moves the f ptr*/
           fread(data, sizeof(uint8_t), sizeof(data), png);
           fwrite(data, sizeof(uint8_t), sizeof(data), wpng);
-
-          printf("fp at: %ld\n", ftell(png));
 
           
      } while (png_chdr != PNG_IEND);
