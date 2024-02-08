@@ -5,14 +5,37 @@
 #include <stdint.h>
 #include <endian.h>
 
-#include "stegoV1.h"
+#include "png.h"
 #include "common.h"
 
+#define R_STEGO          0x1                                // user read 
+#define W_STEGO          0x2                                // user write to new file
+#define D_STEGO          0x4                                // user write from cmdline
+#define F_STEGO          0x8                                // user write from file 
+#define INVALID_STEGO    ( R_STEGO | W_STEGO )              
+
+
+#define PNG_FEND_SZ      4           // size of '.PNG'
+
+typedef struct {
+     char* png;                          // name of the png 
+     char* data;                         // user data if provided via cmdline 
+     char* data_fn;                      // data file if a file is presented instead  
+     char mode;                          // flags for reading and writing, and other potential options 
+
+} uargs; 
 
 uargs ua; 
 
 void usage(){
 
+}
+
+void init_uargs(){
+     ua.png = NULL; 
+     ua.data = NULL; 
+     ua.data_fn = NULL; 
+     ua.mode = 0; 
 }
 
 char* make_wfile(char* r_f){
@@ -37,23 +60,13 @@ char* make_wfile(char* r_f){
 }
 
 
-void get_imgdata(struct stat* s, char* fn){
-
-     // also for checking if the file exists or not 
-     if (stat(fn, s) < 0) {
-          perror("stat()");
-          exit(EXIT_FAILURE);
-     }
-     
-}
-
-
 void handle_cli(int argc, char** argv){
 
      argc--; argv++;   
 
      if (!argc){
-          usage();
+          // usage();
+          printf("NOT ENOUGH ARGS, see usage with --h");
           exit(EXIT_FAILURE);
      }             
 
@@ -63,20 +76,28 @@ void handle_cli(int argc, char** argv){
           if ((*argv[0] == '-')){
 
                // file name 
-               if (!strncmp(*argv, "-fn", ARG_FLAG_SIZE))
-                    ua.r_fn = *(argv + 1); 
+               if (!strncmp(*argv, "-png", 4))
+                    ua.png = *(argv + 1); 
 
-               else if (!strncmp(*argv, "-rs", ARG_FLAG_SIZE))  
+               else if (!strncmp(*argv, "-r", 2))  
                     ua.mode |= R_STEGO;
 
-               else if (!strncmp(*argv, "-ws", ARG_FLAG_SIZE))
+               else if (!strncmp(*argv, "-w", 2))
                     ua.mode |= W_STEGO; 
 
-               // user supplied colour to use for hidding 
-               else if (!strncmp(*argv, "-co", ARG_FLAG_SIZE))
-                    ua.targetc |= strtol_parse(*(argv + 1));
+               else if (!strncmp(*argv, "-data", 5)){
+                    ua.data = *(argv + 1);
+                    ua.mode |= D_STEGO;
+               }
+                    
 
-               else if (!strncmp(*argv, "--h", ARG_FLAG_SIZE)){
+               else if (!strncmp(*argv, "-dfile", 6)){
+                    ua.data_fn = *(argv + 1);
+                    ua.mode |= F_STEGO;
+               }
+
+
+               else if (!strncmp(*argv, "--help", 6)){
                     usage();
                     exit(EXIT_SUCCESS);
                }
@@ -95,125 +116,174 @@ void handle_cli(int argc, char** argv){
      if ( ua.mode == INVALID_STEGO || !ua.mode){
           printf("ERR: INVALID MODE SELECTED\nSee usage with --h\n");
           exit(EXIT_FAILURE);
+     } 
+     if (ua.png == NULL){
+          printf("ERR: NOT PNG FILE SPECIFIED\nSee usage with --h\n");
+          exit(EXIT_FAILURE);
      }
 }
 
-void check_file_sig(FILE* rf, uint8_t* buf){
-     
-     // read the first 8 bytes of the read file 
-     size_t bytes_read = fread(buf, sizeof(uint8_t), PNG_CHSZ, rf); 
 
-     if (!bytes_read || bytes_read != PNG_CHSZ){
+void copy_png_data(FILE* png, FILE* wpng){
+     uint8_t hdr[PNG_CHSZ]; 
 
-          if (feof(rf) != 0)       printf("EOF REACHED\n");
-          if (ferror(rf) != 0)     printf("FERROR()\n");
+     uint32_t png_chdr, png_csz;
 
-          printf("AN ERROR OCCURED");
-          perror("fread()");
-          exit(EXIT_FAILURE);
-     }
+     long sig = be64toh( PNG_SIGR );
 
-     /* cast first 8 bytes as long in network byte order and check if matches sig */  
-     uint64_t sig = htobe64( *(uint64_t*)buf );
+     /*  write the file sig first to the write file */ 
+     fwrite(&sig, sizeof(uint64_t), 1, wpng);
 
-     // printf("%lx\n%lx\n%d\n", sig, PNG_SIGR, sig == PNG_SIGR);
-     if ( !(sig & PNG_CHSZ) ){
-          printf("ERROR: IMAGE SIGNATURE DID NOT MATCH WHAT WAS EXPECTED\n");
-          fclose(rf);
-          exit(EXIT_FAILURE);
-     }
+     do {
+
+          long pos = ftell(png);
+          /* read the next chunk */ 
+          fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
+
+          long pos2 = ftell(png);
+
+          printf("pos after read: %ld\n", pos2);
+
+          png_chdr = htobe32( *((uint32_t*)(hdr + 4)));
+
+          png_csz  = htobe32( *( (uint32_t*)hdr ));
+
+          uint8_t data[png_csz + PNG_CHSZ + PNG_CRCS]; 
+
+          fseek(png, pos, SEEK_SET);
+
+          /* the fread call automatically moves the f ptr*/
+          fread(data, sizeof(uint8_t), sizeof(data), png);
+          fwrite(data, sizeof(uint8_t), sizeof(data), wpng);
+
+          printf("fp at: %ld\n", ftell(png));
+
           
-
-     // have file point after the signature 
-     // int f = fseek(rf, PNG_CHSZ + 1, SEEK_CUR);
-
-
-     // printf("seek in func: %d\n", f);
-
-
+     } while (png_chdr != PNG_IEND);
 }
 
 
-void w_stego(struct stat* finfo){
-     off_t rf_size = finfo->st_size; 
-     printf("%ld\n", rf_size);
+void find_iend(FILE* png){
+     char hdr[PNG_CHSZ];
 
-     uint8_t buf[PNG_CHSZ]; 
-     memset(buf, 0, sizeof(buf));
+     uint32_t png_chdr, png_csz;
 
-     FILE* rf = fopen(ua.r_fn, "rb");
+     do {
+          /* read the next chunk */ 
+          
+          fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
 
-     check_file_sig(rf, buf);
+          png_chdr = htobe32( *((uint32_t*)(hdr + 4)));
 
-     char* w_fn = make_wfile(ua.r_fn);
-     printf("write file: { %s }\n", w_fn);
- 
-     // FILE* wf = fopen(w_fn, "wb");
+          if (png_chdr == PNG_IEND){
 
+               /* go past the CRC */
+               fseek(png, (long)PNG_CRCS, SEEK_CUR);
+               break;
+          }
 
-     // read IHDR size
-     fread(buf, sizeof(uint8_t), PNG_CHSZ, rf);
+          /* jump to next chunk */
+          png_csz  = htobe32( *( (uint32_t*)hdr ));
 
-     uint32_t ihdr_sz = htobe32( *((uint32_t*)buf) );
-     // uint32_t ihdr_sg = htobe32( *((uint32_t*)(buf + 4)));
+          fseek(png, (long)(png_csz + PNG_CRCS), SEEK_CUR);
 
-     printf("HDR size: %x\n", ihdr_sz);
+     } while (1);
+}
 
-     // long ft = ftell(rf); 
-     if (fseek(rf, (long)(ihdr_sz + PNG_CRCS), SEEK_CUR) < 0){
-          perror("fseek()");
+void w_stego(){
+
+     char* png_wn = make_wfile(ua.png);
+
+     FILE* png = fopen(ua.png, "rb");
+
+     if (png == NULL){
+          perror("fopen");
           exit(EXIT_FAILURE);
      }
-     // printf("Position: %ld\n", ft);
 
-     // read next header 
-     fread(buf, sizeof(uint8_t), PNG_CHSZ, rf);
+     if (inspect_png_sig(png) < 0){
+          printf("ERR: INVALID PNG SIGNATURE\nSee usage with '--help'\n");
+          fclose(png);
+          exit(EXIT_FAILURE);
+     }
 
-     uint32_t gAMA_sz = htobe32( *((uint32_t*)buf) );
-     uint32_t gAMA_sg = htobe32( *((uint32_t*)buf + 4) );
+     
+     FILE* png_w = fopen(png_wn, "wb");
 
-     printf("gAMA size: %x\ngAMA hdr: %x\n", gAMA_sz, gAMA_sg);
-     // fseek()
+     if (png_w == NULL){
+          perror("fopen");
+          exit(EXIT_FAILURE);
+     }
+
+     copy_png_data(png, png_w);
+     
+     fclose(png);
+
+     printf("contents copy success\n");
+
+     if (ua.mode & D_STEGO){
+          // char c;
+          size_t len = strlen(ua.data);
+          char data[len + 1];
 
 
-     // for (int i = 0; i < IMG_BUF_SZ; i++){
-     //      if (buf[i] < 0x10)
-     //           printf("0");
-     //      printf("%x ", buf[i]);
-     // }
+          for(size_t i=0; i < len; i++) 
+               data[i] = ua.data[i];
+          
+          data[len] = '\0';
+          fwrite(data, sizeof(char), len+1, png_w);
+     
+     } 
+     else {
 
-     printf("\n");
+     }
+     
 
-
-     free(w_fn);
-     w_fn= NULL;
-
-     fclose(rf);
+     
+     fclose(png_w);
 }
 
 void r_stego(){
+     FILE* png = fopen(ua.png, "rb"); 
+
+     if (inspect_png_sig(png) < 0){
+          printf("ERR: INVALID PNG SIGNATURE\nSee usage with '--help'\n");
+          fclose(png);
+          exit(EXIT_FAILURE);
+     }
+
+     find_iend(png);
+
+     printf("\nFound Message: ");
+
+     char c;
+
+     while ((c = fgetc(png)) != EOF) printf("%c", c);
      
+
+     printf("\n");
+     fclose(png);
 }
 	
 int main(int argc, char** argv){
 
-     struct stat finfo; 
+     
      memset(&ua, 0, sizeof(uargs));
+     init_uargs();
       
      handle_cli(argc, argv);
 
-     get_imgdata(&finfo, ua.r_fn); 
+     // get_imgdata(&finfo, ua.r_fn); 
 
-     printf("target file: { %s }\nsize in bytes: { %ld }\ntarget colour: { %lx }\nmode: { %s }\n", 
-               ua.r_fn, 
-               finfo.st_size, 
-               ua.targetc, 
+     printf("target file: { %s }\ndata: { %s }\nmode: { %s }\n", 
+               ua.png,  
+               ua.data,
                (ua.mode & W_STEGO ? "write" : "read")
           );
 
 
-     if        (ua.mode & R_STEGO)      r_stego(&finfo);
-     else if   (ua.mode & W_STEGO)      w_stego(&finfo);
+     if        (ua.mode & R_STEGO)      r_stego();
+     else if   (ua.mode & W_STEGO)      w_stego();
 
      
      return 0; 
