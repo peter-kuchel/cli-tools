@@ -6,10 +6,11 @@
 
 int inspect_png_sig(FILE* png){
 
-    uint8_t buf[PNG_CHSZ];
+    // uint8_t buf[PNG_CHSZ];
+    uint64_t sig; 
 
     // read the first 8 bytes of the read file 
-    size_t bytes_read = fread(buf, sizeof(uint8_t), PNG_CHSZ, png);
+    size_t bytes_read = fread(&sig, sizeof(uint8_t), PNG_CHSZ, png);
 
     // check that bytes were read correctly 
     if (!bytes_read || bytes_read != PNG_CHSZ){
@@ -24,7 +25,7 @@ int inspect_png_sig(FILE* png){
     }  
 
     /* cast first 8 bytes as long in network byte order and check if matches sig */
-     uint64_t sig = htobe64( *(uint64_t*)buf );
+     sig = htobe64( sig );
 
     printf("%lx\n%lx\n", sig, PNG_SIGR);
      if ( sig != PNG_SIGR ){
