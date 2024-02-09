@@ -26,7 +26,8 @@ int inspect_png_sig(FILE* png){
     /* cast first 8 bytes as long in network byte order and check if matches sig */
      uint64_t sig = htobe64( *(uint64_t*)buf );
 
-     if ( !(sig & PNG_CHSZ) ){
+    printf("%lx\n%lx\n", sig, PNG_SIGR);
+     if ( sig != PNG_SIGR ){
         printf("SIGNATURE IS NOT PNG's");
         // perror("fread()");
         return -1; 
