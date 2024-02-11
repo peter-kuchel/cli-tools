@@ -21,27 +21,14 @@
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 #include <resolv.h>
-               
-/*
-also defined in <netdb.h> as 
-    NI_MAXHOST 
-    NI_MAXSERV
-*/  
-
-// #define NI_MAXHOST_LEN          1025
-// #define NI_MAXSERV_LEN          32
 
 #define NLMSG_ADDR                  20                      // not sure what this is in netlink.h
-
 #define LOCALHOST_INET              "127.0.0.1"
 #define LOCALHOST_INET6             "::1"
 #define LOCAL_LINK_INET6            "fe80"
-#define LOCAL_DNS_RESOLVER          "127.0.0.53"            // local dns resolver addr (not actual dns addr)
-#define IFLIST_RESP_BUFF_SIZE   	(1 << 13)               // large buffer size (8192 )
-
+#define IFLIST_RESP_BUFF_SIZE   	(1 << 13) 
 
 #define RTA_DATA_ADDR(fam, in_buf, len, struct_type, attr) ( inet_ntop(fam, (struct_type*)RTA_DATA(attr) , in_buf, len) ) 
-
 
 #define USER_IFA_CACHEINFO  0x1
 #define USER_IFA_FLAGS      0x2
@@ -51,46 +38,11 @@ typedef struct {
     struct rtgenmsg gen;                        // General form of address family dependent message.
 } nl_req_t; 
 
-
 typedef struct {
     int user_flags; 
 } user_f;
 
-
 static user_f uf; 
-
-
-void get_dns_info(){
-    
-    printf("DNS servers\n");
-
-    /* _res is defined in */
-    if (res_ninit(&_res) < 0){
-        perror("res_ninit");
-        exit(EXIT_FAILURE);
-    }
-
-    int ns_count = _res.nscount; 
-    for (int i=0; i < ns_count; i++){
-
-        struct sockaddr_in addr_i = _res.nsaddr_list[i]; 
-        in_addr_t _addr= addr_i.sin_addr.s_addr; 
-
-        char inet4_addr[INET_ADDRSTRLEN];
-        if(inet_ntop(AF_INET, &_addr, inet4_addr, sizeof(inet4_addr)) == NULL){
-            perror("inet_ntop"); 
-            exit(EXIT_FAILURE); 
-        }
-
-        // use what systemd or resolvectl do to attempt to find in the case of the local dns resolver 
-        if (strncmp(inet4_addr, LOCAL_DNS_RESOLVER, sizeof(LOCAL_DNS_RESOLVER)) == 0){
-            printf("local dns resolver found instead: %s\n", LOCAL_DNS_RESOLVER);
-        } else {
-            printf("[%d]: %s\n", i+1, inet4_addr);
-        }
-
-    }
-}
 
 void netlink_err_msg(){
     printf("If you are getting an error, you might need to run as super-user or with sufficient rights.\n");
@@ -340,9 +292,7 @@ TODO:
 
 */
 
-
-
-void with_nl(){
+void find_info(){
 
     // with help from 
     // https://iijean.blogspot.com/2010/03/howto-get-list-of-network-interfaces-in.html
@@ -436,89 +386,8 @@ void with_nl(){
     
 }
 
-// old method for getting info but still here for the sake of it
-void determine_sa(struct sockaddr* sa){
-    struct sockaddr_in*     ipv4_sa;
-    struct sockaddr_in6*    ipv6_sa;
-    
-    switch(sa->sa_family){
-        case AF_INET: 
-            ipv4_sa = (struct sockaddr_in*)sa; 
-            in_addr_t _addr= ipv4_sa->sin_addr.s_addr; 
-
-            char inet4_addr[INET_ADDRSTRLEN];
-
-            if(inet_ntop(AF_INET, &_addr, inet4_addr, sizeof(inet4_addr)) == NULL){
-                perror("inet_ntop"); 
-                exit(EXIT_FAILURE); 
-            }
-
-            printf("ipv4: %s", inet4_addr);
-            break;
-
-        case AF_INET6:
-            ipv6_sa = (struct sockaddr_in6*)sa;
-            uint8_t* addr = ipv6_sa->sin6_addr.s6_addr;
-            char inet6_addr[INET6_ADDRSTRLEN];
-
-            if(inet_ntop(AF_INET6, addr, inet6_addr, sizeof(inet6_addr)) == NULL){
-                perror("inet_ntop"); 
-                exit(EXIT_FAILURE); 
-            }
-
-            printf("ipv6: %s", inet6_addr);
-            break;
-    }
-}
-
-// old method for getting info but still here for the sake of it
-void with_ifaddrs(){
-    struct ifaddrs *curr_ifa, *init_ifa;
-
-    if (getifaddrs(&init_ifa) == -1){
-        perror("getifaddrs()");
-        exit(EXIT_FAILURE);
-    }                   
-
-    struct sockaddr* _ifa_addr; 
-
-    curr_ifa = init_ifa; 
-
-    int n = 0; 
-    while (curr_ifa != NULL){
-        
-        // printf("[%d] ", n);
-        char* ifa_name = curr_ifa->ifa_name;
-        _ifa_addr = curr_ifa->ifa_addr;
-        int fam = _ifa_addr->sa_family;
-
-        if (
-
-            curr_ifa->ifa_addr != NULL          && 
-            strcmp(ifa_name, "lo") != 0         &&          // don't need the localhost info
-            (fam == AF_INET || fam == AF_INET6)
-
-           ){
-
-            // char* ifa_data = (char*)curr_ifa->ifa_data;
-            
-            printf("[%s] ", ifa_name);
-            determine_sa(_ifa_addr);
-            // printf(" data: %s", ifa_data);
-            printf("\n");
-                
-        }
-
-        curr_ifa = curr_ifa->ifa_next;
-        n++; 
-    }
-    printf("\n");
-
-    freeifaddrs(init_ifa);          // free ifa ptr 
-}
 
 int main(int argc, char** argv){
-
 
     argc--; argv++; 
     uf.user_flags = 0; 
@@ -535,10 +404,8 @@ int main(int argc, char** argv){
 
         argc--; argv++; 
     }
-    
-    with_nl();
-    // get_dns_info();  // might try to incorporate this later on , rn IP info is enough
 
+    find_info();
 
     return 0; 
 }
