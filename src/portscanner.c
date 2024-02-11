@@ -1,27 +1,39 @@
 #include <stdio.h> 
-#include <unistd.h>
 #include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 #include <limits.h>
 #include <errno.h>
 #include <string.h>
+
 #include <sys/socket.h>    
-#include <sys/types.h>                      // man connect suggests including this for portability  
-#include <netinet/in.h>
-#include <netinet/tcp.h> 
+#include <sys/types.h>                      // man connect suggests including this for portability 
+
+#include <netinet/in.h>                     
+#include <netinet/ip.h>                     // iphdr 
+#include <netinet/tcp.h>                    // tcphdr 
 #include <arpa/inet.h>                      // inet_addr
+
 #include <pthread.h> 
-#include <linux/ip.h>                       // iphdr 
+
+#include "common.h"    
+#include "netutils.h"                  
 
 // for testing for real (scanme.nmap.org): 45.33.32.156
 
 #define MAX_THREADS         16
 #define MIN_PORT            1                       // port 0 is reserved 
 #define MAX_PORT            (1 << 16) - 1           // 65535            
-#define T_CALC(s,e)         ((e-s) / (1 << 10))     // is it possible to give each thread 1024 ports 
+#define T_CALC(s,e)         ((e-s) / (1 << 10))     // calc whether can give each thread 1024 ports 
 #define NUM_THREADS(s, e)   ( (T_CALC(s,e) < MAX_THREADS) ? (T_CALC(s,e) + 1) : MAX_THREADS)
 
-#define CON         0 
-#define SYN         1 
+#define PROC_PORT           60000
+
+#define CON                 0 
+#define SYN                 1 
+
+#define TCP_OPT_LEN         20                      // the len for options at the end of a tcp segment header
+#define MTU                 1500                    // typical MTU over the internet   
 
 
 pthread_barrier_t thread_barrier;  
@@ -50,6 +62,18 @@ typedef struct {
 } t_data; 
 
 
+typedef struct {
+
+    uint32_t src_addr; 
+    uint32_t dst_addr; 
+    uint8_t fixed_byte; 
+    uint8_t protocol;
+    uint16_t tcp_seg_len; 
+    
+
+} pseudo_iphdr; 
+
+
 void usage(){
     printf("USAGE:\n");
     printf("-host :: \n");
@@ -68,54 +92,35 @@ void force_fail(char* msg){
     exit(EXIT_FAILURE);
 }
 
-long strtol_parse(char* str){
-    char* endptr; 
-    int base = 10;              /* default base */
-    long str_res; 
-
-    str_res = strtol(str, &endptr, base);
-
-    /*check for errors*/
-    if (
-        ((errno == ERANGE) && (str_res == LONG_MAX || str_res == LONG_MIN))     // ERANGE : Result too large (POSIX.1, C99).     
-        || ( errno != 0 && str_res == 0 )                                       // something wrong if errno is non 0 and port is 0 
-    ){
-        perror("strtol"); 
-        exit(EXIT_FAILURE);
-    }
-
-    // no digits were detected at all in this case 
-    if (str == endptr){
-        fprintf(stderr, "Not a correct port\nPort needs to be between 1 - 65535");
-        exit(EXIT_FAILURE);
-    }
-
-    return str_res;
-
-}
-
 // -host=localhost -port=5000 -prng=22:1000 
 void handle_cli_args(int argc, char* argv[], user_args* uargs){
     int arg_flag_sz = 5; 
     char* token; 
 
-    for (int i = 1; i < argc; i++){
+    argc--; argv++; 
 
-        if (strncmp(argv[i], "-host", arg_flag_sz) == 0){
-            strtok(argv[i], "=");
+    while (argc){
+
+        if (strncmp(*argv, "-host", arg_flag_sz) == 0){
+            strtok(*argv, "=");
             token = strtok(NULL, "=");
             uargs->host = token; 
 
-        } if (strncmp(argv[i], "-port", arg_flag_sz) == 0){
-            strtok(argv[i], "=");
+        } 
+        
+        else if (strncmp(*argv, "-port", arg_flag_sz) == 0){
+            strtok(*argv, "=");
             token = strtok(NULL, "=");
             uargs->port = strtol_parse(token);
-
-        } if (strncmp(argv[i], "-help", arg_flag_sz) == 0){
+        } 
+        
+        else if (strncmp(*argv, "-help", arg_flag_sz) == 0){
             usage();
             exit(0);
-        } if (strncmp(argv[i], "-prng", arg_flag_sz) == 0){
-            strtok(argv[i], "=");
+        } 
+        
+        else if (strncmp(*argv, "-prng", arg_flag_sz) == 0){
+            strtok(*argv, "=");
             token = strtok(NULL, "=");
 
             char* prgn_token = strtok(token, ":");
@@ -123,8 +128,29 @@ void handle_cli_args(int argc, char* argv[], user_args* uargs){
 
             prgn_token = strtok(NULL, ":");
             uargs->prange |= strtol_parse(prgn_token);
-
         } 
+        
+        else if (strncmp(*argv, "-type", arg_flag_sz) == 0){
+
+            int type_len = 3;
+            strtok(*argv, "=");
+            token = strtok(NULL, "=");
+
+            if (strncmp(token, "SYN", type_len) == 0){
+                uargs->type = SYN;
+            } else {
+                printf("TYPE not recognized, see usage with -help\n");
+                exit(EXIT_FAILURE);
+            }
+
+        }
+
+        else {
+            printf("Flag not recognized, see usage with -help\n");
+            exit(EXIT_FAILURE);
+        }
+
+        argv++; argc--; 
     }
 
     if (uargs->host == NULL) force_fail("-host flag is missing\n");
@@ -138,7 +164,8 @@ void handle_cli_args(int argc, char* argv[], user_args* uargs){
 int new_socket_desc(sock_args* sargs){
     int sd; 
     if ( (sd = socket(sargs->_domain, sargs->_type, sargs->_protocol)) < 0){
-        perror("socket()");
+        perror("socket() unable to create socket descriptor");
+        printf("If operation not permitted, try running as superuser\n");
         exit(EXIT_FAILURE);
     }
 
@@ -152,7 +179,7 @@ void config_scan_sock(user_args* uargs){
             uargs->af_fam = AF_INET;
             uargs->sargs._domain = AF_INET; 
             uargs->sargs._type = SOCK_RAW; 
-            uargs->sargs._protocol = 0; // to configure 
+            uargs->sargs._protocol = IPPROTO_TCP; // to configure 
             break; 
         case CON:
             uargs->af_fam = AF_INET;
@@ -165,16 +192,19 @@ void config_scan_sock(user_args* uargs){
 
 int new_tcp_sock(user_args* uargs){
 
-    int sd; 
+    int sd, status; 
 
     sd = new_socket_desc(&uargs->sargs);
 
     switch(uargs->type){
         case SYN: 
-            // if ( (status = setsockopt()) < 0) { 
-            //     perror("setsockopt()"); 
-            //     exit(EXIT_FAILURE);
-            // }
+            ;
+            int ip_hdrincl_set = 1; 
+            if ( (status = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &ip_hdrincl_set, sizeof(ip_hdrincl_set))) < 0) { 
+                close(sd);
+                perror("setsockopt() failed, unable to set sockopt"); 
+                exit(EXIT_FAILURE);
+            }
             break; 
         case CON:
             break; 
@@ -183,7 +213,66 @@ int new_tcp_sock(user_args* uargs){
     return sd;  
 }
 
-void single_scan(user_args* uargs){
+
+void get_source_addr(){
+
+}
+
+
+void creat_syn_packet(char* pckt, user_args* uargs){
+    srand(time(NULL));
+
+    struct iphdr* iph; 
+    struct tcphdr* tcph; 
+    pseudo_iphdr piph; 
+
+    iph = (struct iphdr*)(pckt);
+    iph->version = 4;
+    iph->ihl = 5; 
+    iph->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + TCP_OPT_LEN; 
+    iph->id = htons( (uint16_t)( rand() % ( (1<<16)-1 ) ) );
+    iph->ttl = 64;
+    iph->protocol = IPPROTO_TCP;
+    // iph->saddr = inet_addr(); // find local global addr 
+    iph->daddr = inet_addr( uargs->host );
+    /* will calculate iphdr checksum after tcp checksum */
+
+    tcph = (struct tcphdr*)(pckt + sizeof(struct iphdr));
+    memset(tcph, 0, sizeof(struct tcphdr));
+
+    tcph->source = htons( PROC_PORT );
+    tcph->dest = htons( uargs->port );
+    tcph->doff = 10;                     // data offset in 32 bit words 
+    tcph->syn = 1; 
+    tcph->seq = htonl( (uint32_t)rand() );
+    tcph->window = htons( 2700 );
+    /* need to define psudeo iphdr first before doing tcp checksum */
+
+    // piph.src_addr = 
+
+
+}
+
+void single_syn_scan(user_args* uargs){
+    
+    int sd = new_tcp_sock(uargs); 
+
+    size_t pckthdr = sizeof(struct iphdr) + sizeof(struct tcphdr) + TCP_OPT_LEN; 
+    char packet[pckthdr];
+
+    memset(packet, 0, sizeof(packet)); 
+    creat_syn_packet(packet, uargs);
+
+
+    // send over socket 
+
+    // recieve resp 
+
+    // read 
+}
+
+void single_con_scan(user_args* uargs){
+
     struct sockaddr_in host_addr;  
     int status;
     int sd = new_tcp_sock(uargs);
@@ -288,6 +377,18 @@ void multi_scan(user_args* uargs){
 
 }
 
+void single_type_opts(user_args* uargs){
+    switch(uargs->type){
+        case SYN: 
+            single_syn_scan(uargs);
+            break;
+
+        case CON: 
+            single_con_scan(uargs);
+            break;
+    }
+}
+
 int main(int argc, char* argv[]){
 
     if (argc < 2){
@@ -305,7 +406,7 @@ int main(int argc, char* argv[]){
     if (uargs.port){ /* single port specified*/
 
         printf("==Scanning==\nHOST: %s\nPORT: %ld\n============\n", uargs.host, uargs.port);
-        single_scan(&uargs); 
+        single_type_opts(&uargs); 
         return 0; 
 
     } else { /* scan all within port range */
