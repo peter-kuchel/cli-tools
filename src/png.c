@@ -6,13 +6,9 @@
 
 int inspect_png_sig(FILE* png){
 
-    // uint8_t buf[PNG_CHSZ];
     uint64_t sig; 
-
-    // read the first 8 bytes of the read file 
     size_t bytes_read = fread(&sig, sizeof(uint8_t), PNG_CHSZ, png);
 
-    // check that bytes were read correctly 
     if (!bytes_read || bytes_read != PNG_CHSZ){
 
         if (feof(png) != 0)       printf("EOF REACHED\n");
@@ -21,19 +17,26 @@ int inspect_png_sig(FILE* png){
         printf("AN ERROR OCCURED");
         perror("fread()");
         return -1; 
-        //   exit(EXIT_FAILURE);
     }  
 
-    /* cast first 8 bytes as long in network byte order and check if matches sig */
      sig = htobe64( sig );
 
-    printf("%lx\n%lx\n", sig, PNG_SIGR);
      if ( sig != PNG_SIGR ){
-        printf("SIGNATURE IS NOT PNG's");
-        // perror("fread()");
+        printf("Signature read does not match PNG file signature");
         return -1; 
      }
 
      return 0; 
+}
+
+
+void read_pngchdr(pngchdr* pchdr, FILE* png){
+    uint8_t data[PNG_CHSZ];
+
+    fread(data, sizeof(uint8_t), PNG_CHSZ, png);
+
+    pchdr->len = htobe32( *( (uint32_t*)data ) );
+    pchdr->hdrtype = htobe32( *( (uint32_t*)(data + 4) ) );
+
 }
 

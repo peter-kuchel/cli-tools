@@ -30,6 +30,16 @@
 #define PNG_CHRM_DIV        PNG_GAMA_DIV
 
 
+
+/* png chunk header */
+typedef struct {
+
+    uint32_t len; 
+    uint32_t hdrtype; 
+
+} pngchdr; 
+
 int inspect_png_sig(FILE* png);                         // read signature and point file past the signature 
+void read_pngchdr(pngchdr* pchdr, FILE* png);                           // read type and len from the png
 
 #endif 
