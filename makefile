@@ -10,10 +10,10 @@ IMGS	= $(SRC_DIR)/png.c
 CRYPTO 	= $(SRC_DIR)/kcrypto.c 
 NET		= $(SRC_DIR)/netutils.c 
 
-all: desc port-scanner ip-info ip-info-v2 png-inspector stego-v1 
+all: mk-bin-dir port-scanner ip-info ip-info-v2 png-inspector stego-v1 
 
-desc: 
-	$(CC) -o tooldesc $(SRC_DIR)/tooldesc.c  
+mk-bin-dir:
+	mkdir -p bin 
 	
 port-scanner: 
 	$(CC) $(CFLAGS) $(COMMONS) $(NET) -pthread -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
