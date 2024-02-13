@@ -5,16 +5,16 @@ A collection of command line tools written in C for personal use and to better u
 
 ## current tools available 
 
-* List ipinfov1
-  * List get basic ip info from the kernel  
-* List ipinfov2
-  * List get more detailed ip info from the kernel
-* List pnginspect
-  * List inspects the chunks of a png file
-* List portscan 
-  * List port scanner that supports vanilla and SYN scans 
-* List stegov1
-  * List hide text inside of a png by appending data after the IEND chunk 
+* ipinfov1
+  * get basic ip info from the kernel using interface addresses
+* ipinfov2
+  * get more detailed ip info from the kernel using NETLINK sockets
+* pnginspect
+  * inspects the chunks of a png file
+* portscan 
+  * port scanner that supports vanilla and SYN scans 
+* stegov1
+  * hide text inside of a png by appending data after the IEND chunk 
 
 ## installation
 
