@@ -4,15 +4,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include <sys/types.h>
-#include <sys/ioctl.h> 
+#include <sys/types.h> 
 #include <sys/socket.h> 
-
-#include <asm/types.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
-#include <linux/if_addr.h>
-#include <linux/if_link.h> 
 
 #include <ifaddrs.h> 
 #include <net/if.h>
