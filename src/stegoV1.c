@@ -28,7 +28,14 @@ typedef struct {
 uargs ua; 
 
 void usage(){
-
+     printf(
+          "Usage: stegov1 -png <png file> <mode> [options]\n"
+          "-png : png file to read or write to\n"
+          "-w : write to new stego\n"
+          "\t-data \"<text>\" : text to store into the png\n"
+          "\t-dfile <path> : path to file to read text data from for storing\n"
+          "-r : read from stego\n"
+     );
 }
 
 void init_uargs(){
@@ -66,7 +73,7 @@ void handle_cli(int argc, char** argv){
 
      if (!argc){
           // usage();
-          printf("NOT ENOUGH ARGS, see usage with --h");
+          printf("No args specified, see usage with -help\n");
           exit(EXIT_FAILURE);
      }             
 
@@ -90,14 +97,12 @@ void handle_cli(int argc, char** argv){
                     ua.mode |= D_STEGO;
                }
                     
-
                else if (!strncmp(*argv, "-dfile", 6)){
                     ua.data_fn = *(argv + 1);
                     ua.mode |= F_STEGO;
                }
 
-
-               else if (!strncmp(*argv, "--help", 6)){
+               else if (!strncmp(*argv, "-help", 5)){
                     usage();
                     exit(EXIT_SUCCESS);
                }
@@ -114,11 +119,11 @@ void handle_cli(int argc, char** argv){
      }
 
      if ( ua.mode == INVALID_STEGO || !ua.mode){
-          printf("ERR: INVALID MODE SELECTED\nSee usage with --h\n");
+          printf("ERR: INVALID MODE SELECTED\nSee usage with -help\n");
           exit(EXIT_FAILURE);
      } 
      if (ua.png == NULL){
-          printf("ERR: NOT PNG FILE SPECIFIED\nSee usage with --h\n");
+          printf("ERR: NOT PNG FILE SPECIFIED\nSee usage with -help\n");
           exit(EXIT_FAILURE);
      }
 }
@@ -186,6 +191,7 @@ void find_iend(FILE* png){
 void w_stego(){
 
      char* png_wn = make_wfile(ua.png);
+     printf("created stego file: { %s }\n", png_wn);
 
      FILE* png = fopen(ua.png, "rb");
 
@@ -227,11 +233,41 @@ void w_stego(){
           fwrite(data, sizeof(char), len+1, png_w);
      
      } 
-     else {
 
+     // read contents from a file
+     else {
+          FILE* text_fp = fopen(ua.data_fn, "rb");
+
+          if (text_fp == NULL){
+               perror("fopen fail for dfile");
+               exit(EXIT_FAILURE);
+          }
+
+          size_t size_read = 1024;
+          char buf[size_read]; 
+          size_t bytes_read; 
+
+          do {
+
+               bytes_read = fread(buf, sizeof(char), size_read, text_fp);
+               fwrite(buf, sizeof(char), bytes_read, png_w);
+
+          } while (bytes_read == size_read);
+
+          if (bytes_read == 0){
+               perror("fread error");
+               printf("write to stego incomplete\n");
+               fclose(text_fp);
+               fclose(png_w);
+               exit(EXIT_FAILURE);
+          }
+
+          char null = '\0';
+          fwrite(&null, sizeof(char), 1, png_w);
+
+          fclose(text_fp);
      }
      
-
      
      fclose(png_w);
 }
@@ -247,7 +283,7 @@ void r_stego(){
 
      find_iend(png);
 
-     printf("\nFound Message: ");
+     printf("\nFound Message:\n");
 
      char c;
 
@@ -266,8 +302,6 @@ int main(int argc, char** argv){
       
      handle_cli(argc, argv);
 
-     // get_imgdata(&finfo, ua.r_fn); 
-
      printf("target file: { %s }\ndata: { %s }\nmode: { %s }\n", 
                ua.png,  
                ua.data,
@@ -283,6 +317,4 @@ int main(int argc, char** argv){
 }
 
 
-// AE426082
-// AE426082
 // AE426082
