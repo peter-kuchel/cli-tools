@@ -22,7 +22,10 @@ typedef struct {
 
 
 void usage(){
-
+    printf(
+        "Usage: pnginspect -f <file name> [Options]\n"
+        "currently no options available\n"
+    );
 }
 
 void handle_cli(int argc, char** argv, uargs* ua){
@@ -30,7 +33,7 @@ void handle_cli(int argc, char** argv, uargs* ua){
     argc--; argv++;   
 
     if (!argc){
-        usage();
+        printf("No arguments supplied, see usage with -help\n");
         exit(EXIT_FAILURE);
     }             
 
@@ -43,14 +46,14 @@ void handle_cli(int argc, char** argv, uargs* ua){
             if (!strncmp(*argv, "-f", 2))
                 ua->png_f = *(argv + 1); 
 
-            else if (!strncmp(*argv, "-all", 4))  
-                ua->modes |= MODE_ATXT;
+            // else if (!strncmp(*argv, "-all", 4))  
+            //     ua->modes |= MODE_ATXT;
 
-            else if (!strncmp(*argv, "-ztxt", 5))
-                ua->modes |= MODE_ZTXT; 
+            // else if (!strncmp(*argv, "-ztxt", 5))
+            //     ua->modes |= MODE_ZTXT; 
             
-            else if (!strncmp(*argv, "-itxt", 5))
-                ua->modes |= MODE_ZTXT; 
+            // else if (!strncmp(*argv, "-itxt", 5))
+            //     ua->modes |= MODE_ZTXT; 
 
             else if (!strncmp(*argv, "-help", 5)){
                 usage();
