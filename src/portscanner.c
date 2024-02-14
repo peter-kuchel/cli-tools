@@ -74,12 +74,22 @@ typedef struct {
 
 
 void usage(){
-    printf("USAGE:\n");
-    printf("-host :: \n");
-    printf("\thostname(s) to scan on\n");
-    printf("-port :: \n");
-    printf("\tport to scan\n\tif no port given, all will be scanned\n");
-    printf("-help :: \n");
+    printf(
+        "Usage: portscan -host=<target> [options]\n"
+        "\n-host=<target> : target ipv4 address\n"
+        "\tif no other options specified then vanilla scan on all ports performed\n\tfor 127.0.0.1 use localhost\n"
+        "\n-port=<n> : port to scan\n"
+        "\n-prng=<start>:<end> : port range to scan\n"
+        "\n-type=<t> : scan type, currently supported are\n"
+        "\tCON (vanilla)\n\tSYN\n"
+        "\n\tif no type specified CON is default\n"
+    );
+    // printf("USAGE:\n");
+    // printf("-host :: \n");
+    // printf("\thostname(s) to scan on\n");
+    // printf("-port :: \n");
+    // printf("\tport to scan\n\tif no port given, all will be scanned\n");
+    // printf("-help :: \n");
     // printf("\");
     // printf("\nIf not port is given then all ports will be scanned\n");
 }
@@ -228,9 +238,9 @@ void set_tcpflags(struct tcphdr* tcph, uint8_t flags){
     tcph->fin = (flags & 0x01);
 }
 
-void create_tcp_header(char* pckt){
+// void create_tcp_header(char* pckt){
     
-}
+// }
 
 
 void create_syn_packet(char* pckt, size_t pcktlen, user_args* uargs, pid_t tid){
@@ -265,7 +275,7 @@ void create_syn_packet(char* pckt, size_t pcktlen, user_args* uargs, pid_t tid){
     memset(tcph, 0, sizeof(struct tcphdr));
 
     // tcph->source = htons( PROC_PORT + tid );
-    tcph->source = htons( (rand() % (MAX_PORT - 1000)) + 1000 );
+    tcph->source = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
     tcph->dest = htons( uargs->port );
     tcph->doff = 7;                        // data offset in 32 bit words (so 40 bytes = 10)
     tcph->syn = 1; 
