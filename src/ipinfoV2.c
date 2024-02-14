@@ -44,6 +44,14 @@ typedef struct {
 
 static user_f uf; 
 
+void usage(){
+    printf(
+        "Usage: ipinfov2 [Options]\n"
+        "-f: also display interface flags for each address\n"
+        "-c: diaplay additional address information\n"
+        );
+}
+
 void netlink_err_msg(){
     printf("If you are getting an error, you might need to run as super-user or with sufficient rights.\n");
     printf("Or unfortunately netlink support is missing in the Kernel :(\n");
@@ -393,10 +401,13 @@ int main(int argc, char** argv){
     uf.user_flags = 0; 
 
     while (argc){
-        if (!strcmp(*argv, "-f")){
+        if (!strncmp(*argv, "-f", 2)){
             uf.user_flags |= USER_IFA_FLAGS; 
-        } else if (!strcmp(*argv, "-c")){
+        } else if (!strncmp(*argv, "-c", 2)){
             uf.user_flags |= USER_IFA_CACHEINFO; 
+        }else if (!strncmp(*argv, "-help", 5)){
+            usage();
+            exit(0);
         } else {
             perror("Unrecognized flag, see usage:");
             exit(EXIT_FAILURE);
