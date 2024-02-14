@@ -81,7 +81,7 @@ void usage(){
         "\n-port=<n> : port to scan\n"
         "\n-prng=<start>:<end> : port range to scan\n"
         "\n-type=<t> : scan type, currently supported are\n"
-        "\tCON (vanilla)\n\tSYN\n"
+        "\tCON (vanilla)\n\tSYN (currently being debugged)\n"
         "\n\tif no type specified CON is default\n"
     );
     // printf("USAGE:\n");
