@@ -12,5 +12,10 @@
 
 long strtol_parse(char* str); 
 
+// from Understanding and Using C Pointers by Richard Reese 
+void saferFree(void** pp);
+#define safeFree(p) saferFree((void**)&(p)) 
+
+
 
 #endif

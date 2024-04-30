@@ -5,10 +5,6 @@ long strtol_parse(char* str){
     char* endptr; 
     long str_res; 
 
-
-
-    // printf("%s\n", str);
-
     if (!strncmp(str, "0x", 2))
         str_res = strtol(str, &endptr, 0);
     else 
@@ -32,4 +28,12 @@ long strtol_parse(char* str){
     // printf("%ld\n", str_res);
 
     return str_res;
+}
+
+// from Understanding and Using C Pointers by Richard Reese 
+void saferFree(void**pp){
+	if (pp != NULL && *pp != NULL){
+		free(*pp);
+		*pp = NULL; 
+	}
 }
