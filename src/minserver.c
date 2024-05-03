@@ -96,7 +96,7 @@ typedef struct {
 
 } httpresp_code; 
 
-typedef struct _http_hdr {
+struct _http_hdr {
 	char* hdr_name; 
 	char* hdr_field; 
 } ;
@@ -171,10 +171,10 @@ void add_httpresp_hdr(httpresp* resp, httpresp_hdr_t* hdr){
 	
 }
 
-void dealloc_httpresp(httpresp* resp){
-	// safeFree(resp->code); 
-	// safeFree(resp->content_type);
-}
+// void dealloc_httpresp(httpresp* resp){
+// 	// safeFree(resp->code); 
+// 	// safeFree(resp->content_type);
+// }
 
 ssize_t send_to_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, int flags){
 
@@ -207,12 +207,12 @@ ssize_t recv_from_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, in
 char* handle_mime_type(char* file_ext){
 
 
-
+    printf("%s\n", file_ext);
 	// default 
 	return "text/plain"; 
 }
 
-void extract_file_extension(char* ext_buf, char* path){
+void extract_file_extension(char* ext_buf, size_t ext_buf_size, char* path){
 
 	size_t pos = 0;
 	size_t path_len = strlen(path);
@@ -223,6 +223,8 @@ void extract_file_extension(char* ext_buf, char* path){
 	}
 
 	size_t ext_size = (path + pos) - path; 
+    printf("%ld\n", ext_size);
+    memset(ext_buf, 0, ext_buf_size);
 
 
 }
@@ -369,7 +371,7 @@ size_t http_calc_resp_size(httpresp* resp){
 	return resp_size;
 }
 
-int http_build_resp_hdr(httpresp* resp, char* msg){
+void http_build_resp_hdr(httpresp* resp, char* msg){
 	httpresp_hdr_queue hdrq = resp->hdr_queue; 
 
 	int pos = 0; 
@@ -407,7 +409,7 @@ void http_send_resp(httpresp* resp, const clientinfo* ci){
 
 	
 	msg_size--;			// not to send null terminator over 
-	send_to_client(msg, msg_size, ci, 0); 
+	send_to_client((uint8_t*)msg, msg_size, ci, 0); 
 }
 
 
@@ -513,7 +515,7 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 		sprintf(str_num, "%lx", chunk_size);
 		
 		total_chunk_size += strlen(str_num) + 2 + chunk_size + 2;
-		uint8_t chunk[total_chunk_size];
+		char chunk[total_chunk_size];
 
 		int pos = sprintf(chunk, "%s\r\n%s\r\n", str_num, buf);
 
@@ -524,7 +526,7 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 		printf("Chunk:\n%s\n", chunk);
 
 		printf("\n");
-		send_to_client(chunk, total_chunk_size, ci, 0);
+		send_to_client((uint8_t*)chunk, total_chunk_size, ci, 0);
 		
 	}
 
@@ -562,7 +564,7 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size){
 	return 0; 
 }
 
-int req_client_file(httphdr* client_hdr, const clientinfo* ci, const char* path, char* dir){
+int req_client_file(const clientinfo* ci, const char* path, char* dir){
 	char* dir_copy; 
 	if (dir == NULL){
 		printf("dir was not passed to server\n");
@@ -685,7 +687,7 @@ void handle_client_get(httphdr* client_hdr, const clientinfo* ci, workerinfo* wo
 	
 	if (non_path_req){
 
-		int req_status = req_client_file(client_hdr, ci, path, worker_in->serv_in.dir);
+		int req_status = req_client_file(ci, path, worker_in->serv_in.dir);
 
 		if (req_status != 0){
 			printf("handling err\n");
@@ -697,12 +699,13 @@ void handle_client_get(httphdr* client_hdr, const clientinfo* ci, workerinfo* wo
 }
 
 int recv_file_body(const clientinfo* ci, size_t f_size){
-
+    printf("%p %ld\n", ci, f_size);
+    return 0; 
 }
 
-void handle_client_post(httphdr* client_hdr, const clientinfo* ci, workerinfo* worker_in){
+void handle_client_post(httphdr* client_hdr, const clientinfo* ci){
 	char* path = client_hdr->http_path; 
-	size_t path_len = strlen(path); 
+	// size_t path_len = strlen(path); 
 
 	printf("path recieved: %s\n", path);
 
@@ -732,6 +735,8 @@ void handle_client_post(httphdr* client_hdr, const clientinfo* ci, workerinfo* w
 
 	size_t f_size = (size_t)content_len; 
 
+    recv_file_body(ci, f_size);
+
 	return; 
 
 fail: 
@@ -749,14 +754,14 @@ void handle_client_req_type(httphdr* client_hdr, const clientinfo* ci, workerinf
 	if (strncmp(verb, "GET", 3) == 0 && (verb_size == 3))
 		handle_client_get(client_hdr, ci, worker_in);
 	else if (strncmp(verb, "POST", 4) == 0 && (verb_size == 4))
-		handle_client_post(client_hdr, ci, worker_in);
+		handle_client_post(client_hdr, ci);
 	else 
 		// error -- bad request
 		handle_req_err(ci, -2);
 }
 
 
-int handle_client(const clientinfo* ci, workerinfo* worker_in){
+void handle_client(const clientinfo* ci, workerinfo* worker_in){
 
 	printf("[Thread %d] handling new client request\n", worker_in->tid);
 	// const clientinfo ci = {client_addr, client_sd}; 
@@ -765,8 +770,12 @@ int handle_client(const clientinfo* ci, workerinfo* worker_in){
 	char buf[data_len]; 
 	memset(buf, 0, data_len);
 
-	int recv_flags = 0; 
-	ssize_t bytes_recv = recv_from_client(buf, data_len, ci, 0);
+	ssize_t bytes_recv = recv_from_client((uint8_t*)buf, data_len, ci, 0);
+
+    if (bytes_recv < 0){
+        handle_req_err(ci, -4);
+        return; 
+    }
 
 	httphdr hdr; 
 
@@ -837,7 +846,7 @@ void* worker_handle_req(void* winfo){
 }
 
 void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
-	char* token; 
+	// char* token; 
 
 	argc--; argv++; 
 
