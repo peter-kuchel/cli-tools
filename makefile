@@ -4,19 +4,30 @@ BIN_DIR = bin
 
 CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99 -g
+THREADS = -pthread 
+LCURL = -lcurl
 
 COMMONS = $(SRC_DIR)/common.c
 IMGS	= $(SRC_DIR)/png.c
 CRYPTO 	= $(SRC_DIR)/kcrypto.c 
-NET		= $(SRC_DIR)/netutils.c 
+INET =  $(SRC_DIR)/inetutils.c
 
-all: mk-bin-dir port-scanner ip-info ip-info-v2 png-inspector stego-v1 
+all: 	mk-bin-dir 		\
+	 	port-scanner 	\
+	 	ip-info 		\
+	 	ip-info-v2 		\
+	 	png-inspector 	\
+	 	stego-v1 		\
+	 	minserver 		\
 
 mk-bin-dir:
 	mkdir -p bin 
-	
+
+# HEADERS AND FUNCTIONS ?
+
+# CLI TOOLS 
 port-scanner: 
-	$(CC) $(CFLAGS) $(COMMONS) $(NET) -pthread -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
+	$(CC) $(CFLAGS) $(COMMONS) $(THREADS) $(INET) -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
 
 ip-info: 
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/ipinfov1 $(SRC_DIR)/ipinfoV1.c
@@ -29,4 +40,7 @@ png-inspector:
 
 stego-v1: 
 	$(CC) $(CFLAGS) $(COMMONS) $(IMGS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stegov1
+
+minserver:
+	$(CC) $(CFLAGS) $(LCURL) $(THREADS) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver 
 
