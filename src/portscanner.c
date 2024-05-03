@@ -17,7 +17,8 @@
 #include <pthread.h> 
 
 #include "common.h"    
-#include "netutils.h"                  
+#include "inetutils.h"
+// #include "netutils.h"                  
 
 // for testing for real (scanme.nmap.org): 45.33.32.156
 
