@@ -1,5 +1,5 @@
-#ifndef CLI_NETUTILS_H 
-#define CLI_NETUTILS_H 
+#ifndef CLI_INET_UTILS_H 
+#define CLI_INET_UTILS_H 
 
 #include <ifaddrs.h> 
 #include <net/if.h>

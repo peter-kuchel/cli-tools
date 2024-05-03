@@ -7,7 +7,7 @@
 #include <sys/types.h> 
 #include <sys/socket.h> 
 
-#include "netutils.h"
+#include "inetutils.h"
 /* 
     checksum taken from: 
     https://locklessinc.com/articles/tcp_checksum/ 
