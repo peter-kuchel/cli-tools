@@ -12,7 +12,7 @@
 #include <pthread.h> 
 // #include <math.h>
 
-#define HTTP_GET_REQ_SIZE 	2048					// assumed size of req (will only read this many bytes)
+#define HTTP_GET_REQ_SIZE 	1 << 12					// assumed size of req (will only read 4096 bytes)
 #define HTTP_POST_REQ_SIZE  1 << 16					// 63556 limit for POST
 
 // #define HTTP_GET_PATH_SIZE	1 << 16					// max size of a file to request (for now)
@@ -20,6 +20,7 @@
 #define HTTP_HDR_SPACE 		0x20 					// space char
 #define HTTP_HDR_CR 		0x0d					// Carriage return \r 
 #define HTTP_HDR_LF 		0x0a					// Line feed \n 
+#define HTTP_HDR_COL		0x3a					// colon char 
 // curl/7.58.0
 // HTTP/1.1
 // /user-agent
@@ -59,16 +60,6 @@ void saferFree(void**pp){
 
 #define safeFree(p) saferFree((void**)&(p)) 
 
-// typedef struct {
-// 	char* path_name;
-// 	int path_size; 
-// } path_option; 
-
-// path_option paths[] = [
-// 	{},
-// 	{},
-// 	{},
-// ]
 
 typedef struct {
 	char* dir; 
@@ -88,90 +79,94 @@ typedef struct {
 } clientinfo; 
 
  
-
 typedef struct {
 
 	int status_num; 
 	char* status_msg;
 
-} httpresp_code; 
+} http_resp_code_t; 
 
-struct _http_hdr {
+typedef struct {
 	char* hdr_name; 
 	char* hdr_field; 
-} ;
+} http_hdr_t;
 
-typedef struct _http_hdr httpreq_hdr_t; 
+// typedef struct _http_hdr http_hdr_t; 
+
+#define HTTP_TOTAL_HDR_DEF 1 << 8
+#define HTTP_MAX_HDR_FIELD_SIZE 1 << 10 
 
 typedef struct {
 
-	char* http_method; 	
-	char* http_path; 
-	char* http_version;
+	http_hdr_t resp_hdrs[HTTP_TOTAL_HDR_DEF];
+	int size; 
+	int cap; 
+
+} http_hdr_queue;
+
+typedef struct {
+
+	char* req_method; 	
+	char* req_path; 
+	char* req_http_version;
 
 	char* http_client_addr; 
 	char* http_user_agent; 
 	char* http_content_len; 
 
-} httphdr; 
-
-
-typedef struct {
-	char* resp_hdr_name; 
-	char* resp_hdr_field; 
-} httpresp_hdr_t; 
-
-#define HTTP_TOTAL_RESP_HDR 1 << 8
-
-typedef struct {
-
-	
-	httpresp_hdr_t resp_hdrs[HTTP_TOTAL_RESP_HDR];
-	int size; 
-	int cap; 
-
-} httpresp_hdr_queue; 
-
-typedef struct {
-
-	httpresp_code* code; 
 	char* body; 
 
-	httpresp_hdr_queue hdr_queue; 
+	http_hdr_queue req_hdrs;
 
-} httpresp; 
+} http_req_t; 
+
+
+typedef struct {
+
+	http_resp_code_t* code; 
+	char* body; 
+
+	http_hdr_queue resp_hdrs; 
+
+} http_resp_t; 
 
 
 
-void init_httpresp_queue(httpresp* resp){
-	resp->hdr_queue.size = 0; 
-	resp->hdr_queue.cap = HTTP_TOTAL_RESP_HDR; 
+void init_http_hdr_queue(http_hdr_queue* hdr_queue){
+	hdr_queue->size = 0; 
+	hdr_queue->cap = HTTP_TOTAL_HDR_DEF; 
 }
 
-void init_httpresp(httpresp* resp){
-	// resp->code = malloc(sizeof(httpresp_code)); 
-	init_httpresp_queue(resp);
+void init_http_resp(http_resp_t* resp){
+	
+	init_http_hdr_queue(&(resp->resp_hdrs));
 	resp->body = NULL; 
 }
 
+void init_http_req(http_req_t* req){
+
+	init_http_hdr_queue(&(req->req_hdrs));
+	req->body = NULL; 
+}
 
 
-void add_httpresp_hdr(httpresp* resp, httpresp_hdr_t* hdr){
+
+void add_httpresp_hdr(http_resp_t* resp, http_hdr_t* hdr){
 	
-	int curr_size = resp->hdr_queue.size; 
-	if (curr_size + 1 == resp->hdr_queue.cap){
+	int curr_size = resp->resp_hdrs.size; 
+	if (curr_size + 1 == resp->resp_hdrs.cap){
 
 		// handle errors if too many headers are going to be added
 		perror("Too many response headers\n");
 		exit(1);
 	}
 
-	resp->hdr_queue.resp_hdrs[curr_size] = *hdr; 
-	resp->hdr_queue.size++;
+	resp->resp_hdrs.resp_hdrs[curr_size] = *hdr; 
+	resp->resp_hdrs.size++;
 	
 }
 
-// void dealloc_httpresp(httpresp* resp){
+// void dealloc_httpresp(http_resp_t* resp){
 // 	// safeFree(resp->code); 
 // 	// safeFree(resp->content_type);
 // }
@@ -255,15 +250,17 @@ char* resp_code_type(int status_num){
 }
 
 
-void free_httphdr(httphdr* hdr){
-	safeFree(hdr->http_method);
-	safeFree(hdr->http_path);
-	safeFree(hdr->http_version);
+void free_http_req_t(http_req_t* hdr){
+	safeFree(hdr->req_method);
+	safeFree(hdr->req_path);
+	safeFree(hdr->req_http_version);
 	safeFree(hdr->http_client_addr);
 	safeFree(hdr->http_user_agent);
 }
 
-size_t remove_req_hdr_white_space(size_t pos, char*http_req_hdr){
+size_t remove_req_hdr_white_space(size_t _pos, char*http_req_hdr){
+
+	size_t pos = _pos; 
 	while(http_req_hdr[pos] == HTTP_HDR_SPACE) pos++; 
 
 	return pos; 
@@ -299,65 +296,157 @@ size_t http_hdr_parse_field(size_t init_pos, char* http_req_hdr, char** hdr_fiel
 	return init_pos;   
 }
 
-size_t http_parse_req_line(size_t init_pos, char* http_req_hdr, httphdr* parsed_hdr){
+size_t http_parse_req_line(size_t init_pos, char* http_req_hdr, http_req_t* parsed_hdr){
 
 	size_t pos = init_pos;
-	pos = http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_method), HTTP_HDR_SPACE);
-	pos = http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_path), HTTP_HDR_SPACE);
-	pos = http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_version), HTTP_HDR_CR);  
+	pos = http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->req_method), HTTP_HDR_SPACE);
+	pos = http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->req_path), HTTP_HDR_SPACE);
+	pos = http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->req_http_version), HTTP_HDR_CR);  
 
 	return pos;  
 
 }
 
-void http_parse_all_hdrs(char* http_req_hdr, httphdr* parsed_hdr){
+void http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, size_t curr_pos){
+	size_t pos = curr_pos; 
 
-	size_t pos = 0; 
-	char* field = NULL; 
-	pos = http_parse_req_line(pos, http_req_hdr, parsed_hdr);
+	size_t name_pos, value_pos; 
+	size_t req_size = strlen(http_req_hdr); 
+
+	int parsing = 1; 
+
+	while (parsing){
+		name_pos = pos; 
+		// first capture field name 
+
+		name_pos = remove_req_hdr_white_space(name_pos, http_req_hdr);
+
+		// while ( http_req_hdr[name_pos + 1] != HTTP_HDR_COL ){
+		// 	if (name_pos + 1 == req_size){
+		// 		// error 
+
+		// 	}
+		// 	name_pos++; 
+		// } 
+
+		do {
+			if (name_pos + 1 == req_size){
+				// error 
+			}
+			name_pos++; 
+
+		} while( http_req_hdr[name_pos + 1] != HTTP_HDR_COL );
+
+		size_t name_size = (name_pos - pos);
+		char* field_name = (char*)malloc(sizeof(char) * name_size);
+
+		memset(field_name, 0, name_size);
+		memcpy(field_name, http_req_hdr + pos, field_size - 1); 
 
 
-	field = strstr(http_req_hdr, "Host:");
-	if (field != NULL){
-		pos = (field + 5) - http_req_hdr;
-		pos = remove_req_hdr_white_space(pos, http_req_hdr);
-		http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_client_addr), HTTP_HDR_CR);
+		name_pos += 2;		// skip over the : and go to the next char 
+		name_pos = remove_req_hdr_white_space(name_pos, http_req_hdr);
 
-	} 
+		value_pos = name_pos;
 
-	field = strstr(http_req_hdr, "User-Agent:");
-	if (field != NULL){
-		pos = (field + 11) - http_req_hdr;
-		pos = remove_req_hdr_white_space(pos, http_req_hdr);
-		http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_user_agent), HTTP_HDR_CR);
-	}
-	field = strstr(http_req_hdr, "Content-Length:");
-	if (field != NULL){
-		pos = (field + 15) - http_req_hdr;
-		pos = remove_req_hdr_white_space(pos, http_req_hdr);
-		http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_content_len), HTTP_HDR_CR);
+		// then capture field value 
+		// while ( !(http_req_hdr[value_pos + 1] == HTTP_HDR_CR && http_req_hdr[value_pos + 2] == HTTP_HDR_LF) ){
+		// 	if (value_pos + 2 == req_size){
+		// 		// error since 
+
+		// 	}
+
+		// 	value_pos++;
+		// }
+
+		do {
+			if (value_pos + 2 >= req_size){
+				// error 
+
+			}
+			value_pos++;
+		} while ( http_req_hdr[value_pos + 1] != HTTP_HDR_CR && 
+				  http_req_hdr[value_pos + 2] != HTTP_HDR_LF );
+
+		size_t value_size = (value_pos - name_pos); 
+		char* field_value = (char*)malloc(sizeof(char) * value_size); 
+
+		memset(field_value, 0, value_size);
+		memcpy(field_value, http_req_hdr + name_pos, value_size);
+
+
+		// check field name and value sizes (incase the \r\n\r\n is not present)
+
+		// check for \r\n\r\n 
+		value_pos += 2; 
+
+		// \r\n\r\n was found 
+		if ( (http_req_hdr[value_pos + 1] == HTTP_HDR_CR && http_req_hdr[value_pos + 2] == HTTP_HDR_LF) ){
+			parsing--; 
+		
+		// check if 
+		} else if ( (value_pos + 1 >= req_size) || (value_pos + 2 >= req_size)){
+			// possibly no body is present ? since we know the last 2 chars are \r\n 
+			// so this would possibly be valid too? 
+		} 
+		
+
+		// add the hdr field to the list 
+
 	}
 }
 
-size_t calc_code_size(httpresp_code* code){
+void http_parse_all_hdrs(char* http_req_hdr, http_req_t* parsed_hdr){
+
+	size_t pos = 0; 
+	
+	// returns position after the \r\n\r\n 
+	pos += http_parse_req_line(pos, http_req_hdr, parsed_hdr);
+
+	pos += http_parse_req_hdr_fields(http_req_hdr, parsed_hdr, pos);
+
+	// field = strstr(http_req_hdr, "Host:");
+	// if (field != NULL){
+	// 	pos = (field + 5) - http_req_hdr;
+	// 	pos = remove_req_hdr_white_space(pos, http_req_hdr);
+	// 	http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_client_addr), HTTP_HDR_CR);
+
+	// } 
+
+	// field = strstr(http_req_hdr, "User-Agent:");
+	// if (field != NULL){
+	// 	pos = (field + 11) - http_req_hdr;
+	// 	pos = remove_req_hdr_white_space(pos, http_req_hdr);
+	// 	http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_user_agent), HTTP_HDR_CR);
+	// }
+	// field = strstr(http_req_hdr, "Content-Length:");
+	// if (field != NULL){
+	// 	pos = (field + 15) - http_req_hdr;
+	// 	pos = remove_req_hdr_white_space(pos, http_req_hdr);
+	// 	http_hdr_parse_field(pos, http_req_hdr, &(parsed_hdr->http_content_len), HTTP_HDR_CR);
+	// }
+}
+
+size_t calc_code_size(http_resp_code_t* code){
 	size_t msg_size = 3 + 1 + strlen(code->status_msg);
 	return msg_size; 
 }
 
-size_t calc_body_size(httpresp* resp){
+size_t calc_body_size(http_resp_t* resp){
 	size_t body_size = strlen(resp->body);
 	return body_size; 
 }
 
-size_t http_calc_resp_size(httpresp* resp){
+size_t http_calc_resp_size(http_resp_t* resp){
 	size_t resp_size = 0; 
 
 	resp_size += strlen(HTTP_SERVER_VER) + 1 + calc_code_size(resp->code) + 2;
 
-	httpresp_hdr_t* hdrs = resp->hdr_queue.resp_hdrs; 
+	http_hdr_t* hdrs = resp->resp_hdrs.resp_hdrs; 
 
-	for(int i = 0; i < resp->hdr_queue.size; i++){
-		resp_size += strlen(hdrs[i].resp_hdr_name) + 2 + strlen(hdrs[i].resp_hdr_field) + 2;		// +1 for space 
+	for(int i = 0; i < resp->resp_hdrs.size; i++){
+		resp_size += strlen(hdrs[i].hdr_name) + 2 + strlen(hdrs[i].hdr_field)
+		 + 2;		// +1 for space 
 	}
 
 	// before without the firsr '2 + ' and the ' + 1', resulted in a minor 
@@ -371,16 +460,17 @@ size_t http_calc_resp_size(httpresp* resp){
 	return resp_size;
 }
 
-void http_build_resp_hdr(httpresp* resp, char* msg){
-	httpresp_hdr_queue hdrq = resp->hdr_queue; 
+void http_build_resp_hdr(http_resp_t* resp, char* msg){
+	http_hdr_queue hdrq = resp->resp_hdrs; 
 
 	int pos = 0; 
 	pos += sprintf(msg, "%s %d %s\r\n", HTTP_SERVER_VER, resp->code->status_num, resp->code->status_msg);
 
-	httpresp_hdr_t* hdrs = hdrq.resp_hdrs;
+	http_hdr_t* hdrs = hdrq.resp_hdrs;
 
 	for (int i = 0; i < hdrq.size; i++)
-		pos += sprintf(msg + pos, "%s: %s\r\n", hdrs[i].resp_hdr_name, hdrs[i].resp_hdr_field);
+		pos += sprintf(msg + pos, "%s: %s\r\n", hdrs[i].hdr_name, hdrs[i].hdr_field)
+	;
 
 
 	pos += sprintf(msg + pos, "\r\n%s\r\n", resp->body);
@@ -388,7 +478,7 @@ void http_build_resp_hdr(httpresp* resp, char* msg){
 	printf("pos size: %d\n", pos);
 }
 
-void http_send_resp(httpresp* resp, const clientinfo* ci){
+void http_send_resp(http_resp_t* resp, const clientinfo* ci){
 	
 	size_t msg_size = http_calc_resp_size(resp);
 
@@ -415,10 +505,10 @@ void http_send_resp(httpresp* resp, const clientinfo* ci){
 
 void send_server_err(const clientinfo* ci, int err_code){
 
-	httpresp resp;
-	init_httpresp(&resp);
+	http_resp_t resp;
+	init_http_resp(&resp);
 
-	httpresp_code errcode = { err_code, resp_code_type(err_code) }; 
+	http_resp_code_t errcode = { err_code, resp_code_type(err_code) }; 
 
 	resp.code = &errcode;
 	resp.body = HTTP_EMPTY; 
@@ -426,23 +516,23 @@ void send_server_err(const clientinfo* ci, int err_code){
 	http_send_resp(&resp, ci);
 }
 
-void req_echo(httphdr* client_hdr, const clientinfo* ci){
+void req_echo(http_req_t* client_hdr, const clientinfo* ci){
 
 	int status_num = HTTP_RESP_OK;
-	httpresp resp; 
-	init_httpresp(&resp);
+	http_resp_t resp; 
+	init_http_resp(&resp);
 
-	httpresp_code _code = { status_num, resp_code_type(status_num) }; 
+	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
 	resp.code = &_code; 
-	resp.body = client_hdr->http_path + 6;
+	resp.body = client_hdr->req_path + 6;
 	
-	httpresp_hdr_t content_type = {"Content-Type", "text/plain"};
+	http_hdr_t content_type = {"Content-Type", "text/plain"};
 	add_httpresp_hdr(&resp, &content_type);
 
 	char _content_len[NUM_TO_STR_SIZE] = {0}; 
 	sprintf(_content_len, "%ld", strlen(resp.body));
 
-	httpresp_hdr_t content_len = {"Content-Length", _content_len};
+	http_hdr_t content_len = {"Content-Length", _content_len};
 	add_httpresp_hdr(&resp, &content_len);
 	
 
@@ -453,20 +543,20 @@ void req_echo(httphdr* client_hdr, const clientinfo* ci){
 void req_client_field(const clientinfo* ci, char* field){
 	int status_num = HTTP_RESP_OK;
 
-	httpresp resp;  
-	init_httpresp(&resp); 
+	http_resp_t resp;  
+	init_http_resp(&resp); 
 
-	httpresp_code _code = { status_num, resp_code_type(status_num) }; 
+	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
 	resp.code = &_code;
 	resp.body = field; 
 
-	httpresp_hdr_t content_type = {"Content-Type", "text/plain"};
+	http_hdr_t content_type = {"Content-Type", "text/plain"};
 	add_httpresp_hdr(&resp, &content_type);
 
 	char _content_len[NUM_TO_STR_SIZE] = {0}; 
 	sprintf(_content_len, "%ld", strlen(resp.body));
 
-	httpresp_hdr_t content_len = {"Content-Length", _content_len};
+	http_hdr_t content_len = {"Content-Length", _content_len};
 	add_httpresp_hdr(&resp, &content_len);
 
 	http_send_resp(&resp, ci); 
@@ -477,12 +567,12 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 	int status_num = HTTP_RESP_OK;
 	char str_num[NUM_TO_STR_SIZE] = {0};
 	
-	httpresp send_resp; 
-	init_httpresp(&send_resp);
+	http_resp_t send_resp; 
+	init_http_resp(&send_resp);
 
-	httpresp_code _code = { status_num, resp_code_type(status_num) }; 
-	httpresp_hdr_t content_type = { "Content-Type", "application/octet-stream" };
-	httpresp_hdr_t transfer_encoding = {"Transfer-Encoding", "chunked"};
+	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
+	http_hdr_t content_type = { "Content-Type", "application/octet-stream" };
+	http_hdr_t transfer_encoding = {"Transfer-Encoding", "chunked"};
 
 	send_resp.code = &_code; 
 	send_resp.body = HTTP_EMPTY;
@@ -543,18 +633,18 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size){
 
 	fread(f_content, sizeof(char), f_size, f);
 	
-	httpresp resp; 
-	init_httpresp(&resp);
+	http_resp_t resp; 
+	init_http_resp(&resp);
 
-	httpresp_code _code = { status_num, resp_code_type(status_num) }; 
+	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
 	
 	resp.code = &_code; 
 	resp.body = f_content;
 
 	printf("BODY: %s\n", resp.body);
 	sprintf(str_num, "%ld", strlen(resp.body));
-	httpresp_hdr_t content_len = {"Content-Length", str_num};
-	httpresp_hdr_t content_type = { "Content-Type", "application/octet-stream" };
+	http_hdr_t content_len = {"Content-Length", str_num};
+	http_hdr_t content_type = { "Content-Type", "application/octet-stream" };
 
 	add_httpresp_hdr(&resp, &content_type);
 	add_httpresp_hdr(&resp, &content_len);
@@ -649,9 +739,9 @@ void handle_req_err(const clientinfo* ci, int nerrno){
 	send_server_err(ci, errcode);
 }
 
-void handle_client_get(httphdr* client_hdr, const clientinfo* ci, workerinfo* worker_in){
+void handle_client_get(http_req_t* client_hdr, const clientinfo* ci, workerinfo* worker_in){
 	
-	char* path = client_hdr->http_path; 
+	char* path = client_hdr->req_path; 
 	size_t path_len = strlen(path); 
 
 	printf("path recieved: %s\n", path);
@@ -672,10 +762,10 @@ void handle_client_get(httphdr* client_hdr, const clientinfo* ci, workerinfo* wo
 		req_client_field(ci, client_hdr->http_client_addr);
 
 	} else if (strncmp(path, "/", 1) == 0 && ( path_len == 1)){
-			httpresp resp; 
-			init_httpresp(&resp);
+			http_resp_t resp; 
+			init_http_resp(&resp);
 			int status_num = HTTP_RESP_OK; 
-			httpresp_code _code = { status_num, resp_code_type(status_num) }; 
+			http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
 			resp.code = &_code;
 			resp.body = HTTP_EMPTY; 
 
@@ -703,8 +793,8 @@ int recv_file_body(const clientinfo* ci, size_t f_size){
     return 0; 
 }
 
-void handle_client_post(httphdr* client_hdr, const clientinfo* ci){
-	char* path = client_hdr->http_path; 
+void handle_client_post(http_req_t* client_hdr, const clientinfo* ci){
+	char* path = client_hdr->req_path; 
 	// size_t path_len = strlen(path); 
 
 	printf("path recieved: %s\n", path);
@@ -746,9 +836,9 @@ fail:
 
 }
 
-void handle_client_req_type(httphdr* client_hdr, const clientinfo* ci, workerinfo* worker_in){
+void handle_client_req_type(http_req_t* client_hdr, const clientinfo* ci, workerinfo* worker_in){
 
-	char* verb = client_hdr->http_method; 
+	char* verb = client_hdr->req_method; 
 	size_t verb_size = strlen(verb);
 
 	if (strncmp(verb, "GET", 3) == 0 && (verb_size == 3))
@@ -777,13 +867,13 @@ void handle_client(const clientinfo* ci, workerinfo* worker_in){
         return; 
     }
 
-	httphdr hdr; 
+	http_req_t hdr; 
 
 	http_parse_all_hdrs(buf, &hdr);
 
 	handle_client_get(&hdr, ci, worker_in);
 
-	free_httphdr(&hdr);
+	free_http_req_t(&hdr);
 
 	printf("Worker finised\n");
 }
