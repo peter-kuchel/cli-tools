@@ -340,9 +340,10 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 	size_t req_size = strlen(http_req_hdr); 
 
 	int parsing = 1; 
+	// size_t i; 
 
 	while (parsing){
-		name_pos = pos; 
+		name_pos = pos; // plus 1 to move past \n in the first \r\n
 		// first capture field name 
 
 		name_pos = remove_req_hdr_white_space(name_pos, http_req_hdr);
@@ -356,11 +357,16 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 
 		} while( http_req_hdr[name_pos + 1] != HTTP_HDR_COL );
 
-		size_t name_size = (name_pos - pos) + 2; 						// account for null terminator 
+		size_t name_size = (name_pos - pos) + 1; 						// account for null terminator 
 		char* field_name = (char*)malloc(sizeof(char) * name_size);
 
 		memset(field_name, 0, name_size);
-		memcpy(field_name, http_req_hdr + pos, name_size - 1); 
+		memcpy(field_name, http_req_hdr + pos + 1, name_size - 1);		// pos + 1 to get past the \n
+
+		// for (i = 0; i < name_size; i ++) 
+		// 	printf("%x ", field_name[i]); 
+		
+		// printf("\n"); 
 		// printf("found name: %s\n", field_name);
 
 		name_pos += 2;		// skip over the : and go to the next char 
@@ -386,6 +392,11 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		memset(field_value, 0, value_size);
 		memcpy(field_value, http_req_hdr + name_pos, value_size - 1);
 		// printf("found value: %s\n", field_value);
+
+		// for (i = 0; i < value_size; i ++) 
+		// 	printf("%x ", field_value[i]); 
+		
+		// printf("\n");
 
 		// check field name and value sizes (incase the \r\n\r\n is not present)
 
@@ -516,15 +527,15 @@ void http_send_resp(http_resp_t* resp, const clientinfo* ci){
 	char msg[msg_size]; 														
 	memset(msg, 0, msg_size);
 	
-	printf("ci ptr befor: %p\n", ci);
+	// printf("ci ptr befor: %p\n", ci);
 	http_build_resp_hdr(resp, msg);
-	printf("ci ptr after: %p\n", ci);
-	printf("msg is:\n");
+	// printf("ci ptr after: %p\n", ci);
+	printf("msg is: %s\n", msg);
 
-	for (size_t i = 0; i < msg_size; i ++){
-		printf("%0x ", msg[i]);
-		if (i % 8 == 0 && i > 0) printf("\n");
-	}
+	// for (size_t i = 0; i < msg_size; i ++){
+	// 	printf("%0x ", msg[i]);
+	// 	if (i % 8 == 0 && i > 0) printf("\n");
+	// }
 
 	
 	msg_size--;			// not to send null terminator over 
@@ -543,6 +554,36 @@ void send_server_err(const clientinfo* ci, int err_code){
 	resp.body = HTTP_EMPTY; 
 	
 	http_send_resp(&resp, ci);
+}
+
+void handle_req_err(const clientinfo* ci, int nerrno){
+
+	int errcode; 
+
+	if (nerrno < -1){
+
+		switch(nerrno){
+			case -2:  
+				errcode = HTTP_RESP_BAD_REQ;    	
+				break; 
+			case -3:  
+				errcode = HTTP_RESP_NOT_FOUND;		
+				break;
+			case -4:  
+				errcode = HTTP_RESP_INT_SERV_ERR; 	
+				break;			
+		}
+
+	} else {
+		if (errno == ENOENT)
+			errcode = HTTP_RESP_NOT_FOUND;
+		else if (errno == EACCES)
+			errcode = HTTP_RESP_FORBIDDEN;
+		else 
+			errcode = HTTP_RESP_INT_SERV_ERR;
+	}
+	
+	send_server_err(ci, errcode);
 }
 
 void req_echo(http_req_t* client_hdr, const clientinfo* ci){
@@ -569,15 +610,36 @@ void req_echo(http_req_t* client_hdr, const clientinfo* ci){
 
 }
 
-void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs){
+void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs, char* field_to_find){ 
+
+	char* resp_value = NULL; 
+
+	// check to see that hdr requested was included 
+	int hdrs_size = req_hdrs->size; 
+	for (int i = 0; i < hdrs_size; i++){
+		printf("%s -?- %s\n", field_to_find, req_hdrs->hdrs[i].hdr_name);
+		if (strncmp(field_to_find, req_hdrs->hdrs[i].hdr_name, strlen(field_to_find)) == 0){
+			resp_value = req_hdrs->hdrs[i].hdr_value;
+			break; 
+		}
+	}
+
+	
+
+	if (resp_value == NULL) {
+		printf("msg not found\n");
+		handle_req_err(ci, -3);
+		return; 
+	}
+	
 	int status_num = HTTP_RESP_OK;
 
 	http_resp_t resp;  
-	init_http_resp(&resp); 
+	init_http_resp(&resp);
 
 	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
 	resp.code = &_code;
-	resp.body = field; 
+	resp.body = resp_value; 
 
 	http_hdr_t content_type = {"Content-Type", "text/plain"};
 	add_httpresp_hdr(&resp, &content_type);
@@ -738,36 +800,6 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 
 }
 
-void handle_req_err(const clientinfo* ci, int nerrno){
-
-	int errcode; 
-
-	if (nerrno < -1){
-
-		switch(nerrno){
-			case -2:  
-				errcode = HTTP_RESP_BAD_REQ;    	
-				break; 
-			case -3:  
-				errcode = HTTP_RESP_NOT_FOUND;		
-				break;
-			case -4:  
-				errcode = HTTP_RESP_INT_SERV_ERR; 	
-				break;			
-		}
-
-	} else {
-		if (errno == ENOENT)
-			errcode = HTTP_RESP_NOT_FOUND;
-		else if (errno == EACCES)
-			errcode = HTTP_RESP_FORBIDDEN;
-		else 
-			errcode = HTTP_RESP_INT_SERV_ERR;
-	}
-	
-	send_server_err(ci, errcode);
-}
-
 void handle_client_get(http_req_t* client_hdr, const clientinfo* ci, workerinfo* worker_in){
 	
 	char* path = client_hdr->req_path; 
@@ -783,12 +815,12 @@ void handle_client_get(http_req_t* client_hdr, const clientinfo* ci, workerinfo*
 	else if (strncmp(path, "/user-agent", 11) == 0 && (path_len == 11)){
 		printf("user agent req for: %s\n", path);
 		
-		req_client_field(ci, client_hdr->req_hdrs);
+		req_client_field(ci, &(client_hdr->req_hdrs), "User-Agent");
 	
 	} else if (strncmp(path, "/host", 5) == 0 && (path_len == 5)){
-		// printf("host: %s\n", path);
+		printf("host: %s\n", path);
 
-		req_client_field(ci, client_hdr->req_hdrs);
+		req_client_field(ci, &(client_hdr->req_hdrs), "Host");
 
 	} else if (strncmp(path, "/", 1) == 0 && ( path_len == 1)){
 			http_resp_t resp; 
