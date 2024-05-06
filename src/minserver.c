@@ -136,6 +136,7 @@ typedef struct {
 void init_http_hdr_list(http_hdr_list* hdr_queue){
 	hdr_queue->size = 0; 
 	hdr_queue->cap = HTTP_TOTAL_HDR_DEF; 
+
 }
 
 void init_http_resp(http_resp_t* resp){
@@ -277,8 +278,10 @@ void free_http_req_t(http_req_t* hdr){
 	safeFree(hdr->req_method);
 	safeFree(hdr->req_path);
 	safeFree(hdr->req_http_version);
-	// safeFree(hdr->http_client_addr);
-	// safeFree(hdr->http_user_agent);
+
+	safeFree(hdr->body);
+
+	dealloc_http_hdr_field(&(hdr->req_hdrs));
 }
 
 size_t remove_req_hdr_white_space(size_t _pos, char*http_req_hdr){
@@ -344,14 +347,6 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 
 		name_pos = remove_req_hdr_white_space(name_pos, http_req_hdr);
 
-		// while ( http_req_hdr[name_pos + 1] != HTTP_HDR_COL ){
-		// 	if (name_pos + 1 == req_size){
-		// 		// error 
-
-		// 	}
-		// 	name_pos++; 
-		// } 
-
 		do {
 			if (name_pos + 1 == req_size){
 				// error 
@@ -361,12 +356,12 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 
 		} while( http_req_hdr[name_pos + 1] != HTTP_HDR_COL );
 
-		size_t name_size = (name_pos - pos);
+		size_t name_size = (name_pos - pos) + 2; 						// account for null terminator 
 		char* field_name = (char*)malloc(sizeof(char) * name_size);
 
 		memset(field_name, 0, name_size);
 		memcpy(field_name, http_req_hdr + pos, name_size - 1); 
-
+		// printf("found name: %s\n", field_name);
 
 		name_pos += 2;		// skip over the : and go to the next char 
 		name_pos = remove_req_hdr_white_space(name_pos, http_req_hdr);
@@ -374,14 +369,6 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		value_pos = name_pos;
 
 		// then capture field value 
-		// while ( !(http_req_hdr[value_pos + 1] == HTTP_HDR_CR && http_req_hdr[value_pos + 2] == HTTP_HDR_LF) ){
-		// 	if (value_pos + 2 == req_size){
-		// 		// error since 
-
-		// 	}
-
-		// 	value_pos++;
-		// }
 
 		do {
 			if (value_pos + 2 >= req_size){
@@ -393,12 +380,12 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		} while ( http_req_hdr[value_pos + 1] != HTTP_HDR_CR && 
 				  http_req_hdr[value_pos + 2] != HTTP_HDR_LF );
 
-		size_t value_size = (value_pos - name_pos); 
+		size_t value_size = (value_pos - name_pos) + 2; // account for null terminator 
 		char* field_value = (char*)malloc(sizeof(char) * value_size); 
 
 		memset(field_value, 0, value_size);
 		memcpy(field_value, http_req_hdr + name_pos, value_size - 1);
-
+		// printf("found value: %s\n", field_value);
 
 		// check field name and value sizes (incase the \r\n\r\n is not present)
 
@@ -409,6 +396,7 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		if ( (http_req_hdr[value_pos + 1] == HTTP_HDR_CR && http_req_hdr[value_pos + 2] == HTTP_HDR_LF) ){
 			parsing--; 
 			pos = value_pos + 2;
+			// printf("all have been parsed\n");
 		
 		// check if end of req has been reached 
 		} else if ( (value_pos + 1 >= req_size) || (value_pos + 2 >= req_size)){
@@ -581,7 +569,7 @@ void req_echo(http_req_t* client_hdr, const clientinfo* ci){
 
 }
 
-void req_client_field(const clientinfo* ci, char* field){
+void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs){
 	int status_num = HTTP_RESP_OK;
 
 	http_resp_t resp;  
@@ -795,12 +783,12 @@ void handle_client_get(http_req_t* client_hdr, const clientinfo* ci, workerinfo*
 	else if (strncmp(path, "/user-agent", 11) == 0 && (path_len == 11)){
 		printf("user agent req for: %s\n", path);
 		
-		req_client_field(ci, client_hdr->http_user_agent);
+		req_client_field(ci, client_hdr->req_hdrs);
 	
 	} else if (strncmp(path, "/host", 5) == 0 && (path_len == 5)){
 		// printf("host: %s\n", path);
 
-		req_client_field(ci, client_hdr->http_client_addr);
+		req_client_field(ci, client_hdr->req_hdrs);
 
 	} else if (strncmp(path, "/", 1) == 0 && ( path_len == 1)){
 			http_resp_t resp; 
@@ -909,11 +897,14 @@ void handle_client(const clientinfo* ci, workerinfo* worker_in){
     }
 
 	http_req_t hdr; 
+	init_http_req(&hdr);
 
 	int res = http_parse_all_hdrs(buf, &hdr);
 
-	if (res != 0)
+	if (res == 0)
 		handle_client_get(&hdr, ci, worker_in);
+	else 
+		handle_req_err(ci, -2);
 
 	free_http_req_t(&hdr);
 
