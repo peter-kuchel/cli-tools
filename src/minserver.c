@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 #include <pthread.h> 
-// #include <math.h>
+#include <math.h>
 
 #define HTTP_GET_REQ_SIZE 	1 << 12					// assumed size of req (will only read 4096 bytes)
 #define HTTP_POST_REQ_SIZE  1 << 16					// 63556 limit for POST
@@ -22,10 +22,7 @@
 #define HTTP_HDR_LF 		0x0a					// Line feed \n 
 #define HTTP_HDR_COL		0x3a					// colon char 
 #define HTTP_BODY_END       0x0 					// null char for body end 
-// curl/7.58.0
-// HTTP/1.1
-// /user-agent
-// localhost:4221
+
 #define HTTP_SERVER_VER "HTTP/1.1"					// version of server 
 #define HTTP_EMPTY		""							// empty string for empty requests
 #define HTTP_CHUNK_SIZE 1 << 15						// size of a chunk to be sent
@@ -92,8 +89,6 @@ typedef struct {
 	char* hdr_value; 
 } http_hdr_t;
 
-// typedef struct _http_hdr http_hdr_t; 
-
 #define HTTP_TOTAL_HDR_DEF 1 << 8
 #define HTTP_MAX_HDR_FIELD_SIZE 1 << 10 
 #define HTTP_HDR_PARSE_ERR_VAL 1 << 20				// size size max is 2^10, make err val something larger
@@ -111,10 +106,6 @@ typedef struct {
 	char* req_method; 	
 	char* req_path; 
 	char* req_http_version;
-
-	// char* http_client_addr; 
-	// char* http_user_agent; 
-	// char* http_content_len; 
 
 	char* body; 
 
@@ -617,7 +608,6 @@ char* get_req_hdr_value(http_hdr_list* req_hdrs, const char* name){
 	int hdrs_size = req_hdrs->size; 
 
 	for (int i = 0; i < hdrs_size; i++){
-		// printf("%s -?- %s\n", field_to_find, req_hdrs->hdrs[i].hdr_name);
 
 		if (strncmp(name, req_hdrs->hdrs[i].hdr_name, strlen(name)) == 0){
 			resp_value = req_hdrs->hdrs[i].hdr_value;
@@ -740,7 +730,7 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size){
 	resp.code = &_code; 
 	resp.body = f_content;
 
-	printf("BODY: %s\n", resp.body);
+	// printf("BODY: %s\n", resp.body);
 	sprintf(str_num, "%ld", strlen(resp.body));
 	http_hdr_t content_len = {"Content-Length", str_num};
 	http_hdr_t content_type = { "Content-Type", "application/octet-stream" };
@@ -757,21 +747,18 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 	char* dir_copy; 
 	if (dir == NULL){
 		printf("dir was not passed to server\n");
-
-		// return -1; 
-		// return -3;
 		dir_copy = HTTP_EMPTY; 
 
 	} else{
 		dir_copy = dir; 
 	}
 
-	int cc_test_pass = 7;
+	// int cc_test_pass = 7;
 
 	struct stat f_stats;
 
 	size_t dir_len = strlen(dir_copy); 
-	size_t path_len = strlen(path + cc_test_pass);
+	size_t path_len = strlen(path);
 	size_t full_len = dir_len + path_len + 1;
 	
 	char full_path[full_len];
@@ -779,9 +766,9 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 	memset(full_path, 0, full_len);
 
 	memcpy(full_path, dir_copy, dir_len);
-	memcpy(full_path + dir_len, path + cc_test_pass, path_len);
+	memcpy(full_path + dir_len, path, path_len);
 
-	printf("full path: %s\n", full_path);
+	// printf("full path: %s\n", full_path);
 
 	int ret = stat(full_path, &f_stats);
 
@@ -791,7 +778,7 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 		return ret; 
 	}
 
-	printf("ret: %d\n", ret);
+	// printf("ret: %d\n", ret);
 
 	size_t f_size = (size_t)f_stats.st_size; 
 
@@ -864,13 +851,9 @@ int save_client_body(
 		const char* dir,
 		const clientinfo* ci 
 ){
-	// create full path 
-	// char* full_path; 
 	char* dir_copy; 
 	if (dir == NULL) dir_copy = HTTP_EMPTY; 
 	else dir_copy = (char*)dir; 
-
-	int cc_test_pass = 1;
 
 	size_t dir_len = strlen(dir_copy); 
 	size_t path_len = strlen(path);
@@ -881,7 +864,7 @@ int save_client_body(
 	memset(full_path, 0, full_len);
 
 	memcpy(full_path, dir_copy, dir_len);
-	memcpy(full_path + dir_len, path + cc_test_pass, path_len);
+	memcpy(full_path + dir_len, path, path_len);
 
 	printf("full path: %s\nbody: %s\n", full_path, body);
 
@@ -896,7 +879,7 @@ int save_client_body(
 	fclose(f);
 
 	// send resp that it was successful 
-
+	printf("file made, sending resp\n");
 	int status_num = HTTP_RESP_CREATED; 
 	http_resp_t resp; 
 	init_http_resp(&resp);
