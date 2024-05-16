@@ -341,12 +341,7 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 	size_t name_pos, value_pos; 
 	size_t req_size = strlen(http_req_hdr); 
 
-	// for (size_t u = 0; u < req_size; u++) printf("%x ", http_req_hdr[u]);
-	// printf("\n");
-
 	int parsing = 1; 
-	// printf("%s\n", http_req_hdr);
-	// size_t i; 
 
 	while (parsing){
 
@@ -371,11 +366,6 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		memset(field_name, 0, name_size);
 		memcpy(field_name, http_req_hdr + pos + 1, name_size - 1);		// pos + 1 to get past the \n
 
-
-		// printf("found name: %s\n", field_name);
-		
-		// printf("\n"); 
-
 		name_pos += 2;		// skip over the : and go to the next char 
 		name_pos = remove_req_hdr_white_space(name_pos, http_req_hdr);
 
@@ -392,8 +382,6 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 			}
 			
 			value_pos++;
-			// printf("value pos: %ld, req_size: %ld, char: %c\n", value_pos, req_size, *(http_req_hdr + value_pos));
-
 		} while ( http_req_hdr[value_pos + 1] != HTTP_HDR_CR && 
 				  http_req_hdr[value_pos + 2] != HTTP_HDR_LF );
 
@@ -454,17 +442,6 @@ size_t http_parse_req_body(char* http_req_hdr, http_req_t* parsed_hdr, size_t cu
 
 	while (http_req_hdr[pos + 1] != HTTP_BODY_END) pos++; 
 
-	// do {
-	// 		if (pos + 2 >= req_size){
-	// 			// error 
-	// 			goto parsing_error;
-
-	// 		}
-	// 		pos++;
-	// while (http)
-	// } while ( http_req_hdr[pos + 1] != HTTP_HDR_CR && 
-	// 		  http_req_hdr[pos + 2] != HTTP_HDR_LF );
-
 	size_t body_size = (pos - curr_pos) + 1; 
 	char* body_value = (char*)malloc(sizeof(char) * body_size); 
 	memset(body_value, 0, body_size); 
@@ -473,10 +450,7 @@ size_t http_parse_req_body(char* http_req_hdr, http_req_t* parsed_hdr, size_t cu
 	parsed_hdr->body = body_value; 
 
 	return pos; 
-	// add_http_hdr_field(&(parsed_hdr->req_hdrs), field_name, field_value);
-
-// parsing_error: 
-// 	return HTTP_HDR_PARSE_ERR_VAL;
+	
 }
 
 int http_parse_all_hdrs(char* http_req_hdr, http_req_t* parsed_hdr){
@@ -484,17 +458,17 @@ int http_parse_all_hdrs(char* http_req_hdr, http_req_t* parsed_hdr){
 	size_t pos = 0; 
 	 
 	size_t pos_after_req_line = http_parse_req_line(http_req_hdr, parsed_hdr, pos);
-	printf("%ld pos\n", pos_after_req_line);
+	
 	if (pos_after_req_line == HTTP_HDR_PARSE_ERR_VAL) return -1; 
 	pos += pos_after_req_line; 
 
 	size_t pos_after_hdr_parse = http_parse_req_hdr_fields(http_req_hdr, parsed_hdr, pos);
-	printf("%ld pos\n", pos_after_hdr_parse);
+	
 	if (pos_after_hdr_parse == HTTP_HDR_PARSE_ERR_VAL) return -1;
 	pos = pos_after_hdr_parse; 
 
 	size_t pos_after_body_parse = http_parse_req_body(http_req_hdr, parsed_hdr, pos);
-	printf("%ld pos\n", pos_after_body_parse);
+	
 	if (pos_after_body_parse == HTTP_HDR_PARSE_ERR_VAL) return -1; 
 
 	return 0; 
@@ -562,11 +536,6 @@ void http_send_resp(http_resp_t* resp, const clientinfo* ci){
 	http_build_resp_hdr(resp, msg);
 	// printf("ci ptr after: %p\n", ci);
 	printf("msg is: %s\n", msg);
-
-	// for (size_t i = 0; i < msg_size; i ++){
-	// 	printf("%0x ", msg[i]);
-	// 	if (i % 8 == 0 && i > 0) printf("\n");
-	// }
 
 	
 	msg_size--;			// not to send null terminator over 
@@ -662,7 +631,6 @@ char* get_req_hdr_value(http_hdr_list* req_hdrs, const char* name){
 void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs, char* field_to_find){ 
 
 	
-
 	// check to see that hdr requested was included 
 	char* resp_value = get_req_hdr_value(req_hdrs, field_to_find); 
 
