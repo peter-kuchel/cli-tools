@@ -21,6 +21,7 @@
 #define HTTP_HDR_CR 		0x0d					// Carriage return \r 
 #define HTTP_HDR_LF 		0x0a					// Line feed \n 
 #define HTTP_HDR_COL		0x3a					// colon char 
+#define HTTP_BODY_END       0x0 					// null char for body end 
 // curl/7.58.0
 // HTTP/1.1
 // /user-agent
@@ -252,6 +253,9 @@ char* resp_code_type(int status_num){
 	switch(status_num){
 		case HTTP_RESP_OK: 
 			return "Okay";
+		
+		case HTTP_RESP_CREATED:
+			return "Created";
 
 		case HTTP_RESP_FORBIDDEN:
 			return "Forbidden"; 
@@ -433,37 +437,46 @@ parsing_error:
 
 size_t http_parse_req_body(char* http_req_hdr, http_req_t* parsed_hdr, size_t curr_pos){
 
-
+	curr_pos++;				// move past the \n currently being pointed at
 	size_t pos = curr_pos; 
 
 	size_t req_size = strlen(http_req_hdr); 
 
+	// printf("%s\n", http_req_hdr);
+	for (size_t u =0; u < req_size + 2; u++) printf("%x ", http_req_hdr[u]);
+	printf("\n");
+
 	// check first if there is no body
-	// printf("%ld == %ld\n", req_size, pos);
+	printf("%ld == %ld\n", req_size, pos);
 	if (pos == req_size || pos + 1 == req_size){
 		return pos; 
 	}
 
-	do {
-			if (pos + 2 >= req_size){
-				// error 
-				goto parsing_error;
+	while (http_req_hdr[pos + 1] != HTTP_BODY_END) pos++; 
 
-			}
-			pos++;
-	} while ( http_req_hdr[pos + 1] != HTTP_HDR_CR && 
-			  http_req_hdr[pos + 2] != HTTP_HDR_LF );
+	// do {
+	// 		if (pos + 2 >= req_size){
+	// 			// error 
+	// 			goto parsing_error;
 
-	size_t body_size = (pos - curr_pos) + 2; 
+	// 		}
+	// 		pos++;
+	// while (http)
+	// } while ( http_req_hdr[pos + 1] != HTTP_HDR_CR && 
+	// 		  http_req_hdr[pos + 2] != HTTP_HDR_LF );
+
+	size_t body_size = (pos - curr_pos) + 1; 
 	char* body_value = (char*)malloc(sizeof(char) * body_size); 
 	memset(body_value, 0, body_size); 
-	memcpy(body_value, http_req_hdr + pos, body_size - 1);
+	memcpy(body_value, http_req_hdr + curr_pos, body_size);
 
 	parsed_hdr->body = body_value; 
+
+	return pos; 
 	// add_http_hdr_field(&(parsed_hdr->req_hdrs), field_name, field_value);
 
-parsing_error: 
-	return HTTP_HDR_PARSE_ERR_VAL;
+// parsing_error: 
+// 	return HTTP_HDR_PARSE_ERR_VAL;
 }
 
 int http_parse_all_hdrs(char* http_req_hdr, http_req_t* parsed_hdr){
@@ -471,17 +484,17 @@ int http_parse_all_hdrs(char* http_req_hdr, http_req_t* parsed_hdr){
 	size_t pos = 0; 
 	 
 	size_t pos_after_req_line = http_parse_req_line(http_req_hdr, parsed_hdr, pos);
-	// printf("%ld pos\n", pos_after_req_line);
+	printf("%ld pos\n", pos_after_req_line);
 	if (pos_after_req_line == HTTP_HDR_PARSE_ERR_VAL) return -1; 
 	pos += pos_after_req_line; 
 
 	size_t pos_after_hdr_parse = http_parse_req_hdr_fields(http_req_hdr, parsed_hdr, pos);
-	// printf("%ld pos\n", pos_after_hdr_parse);
+	printf("%ld pos\n", pos_after_hdr_parse);
 	if (pos_after_hdr_parse == HTTP_HDR_PARSE_ERR_VAL) return -1;
 	pos = pos_after_hdr_parse; 
 
 	size_t pos_after_body_parse = http_parse_req_body(http_req_hdr, parsed_hdr, pos);
-	// printf("%ld pos\n", pos_after_body_parse);
+	printf("%ld pos\n", pos_after_body_parse);
 	if (pos_after_body_parse == HTTP_HDR_PARSE_ERR_VAL) return -1; 
 
 	return 0; 
@@ -889,10 +902,10 @@ int save_client_body(
 	if (dir == NULL) dir_copy = HTTP_EMPTY; 
 	else dir_copy = (char*)dir; 
 
-	int cc_test_pass = 7;
+	int cc_test_pass = 1;
 
 	size_t dir_len = strlen(dir_copy); 
-	size_t path_len = strlen(path + cc_test_pass);
+	size_t path_len = strlen(path);
 	size_t full_len = dir_len + path_len + 1;
 	
 	char full_path[full_len];
@@ -902,13 +915,14 @@ int save_client_body(
 	memcpy(full_path, dir_copy, dir_len);
 	memcpy(full_path + dir_len, path + cc_test_pass, path_len);
 
-	printf("full path: %s\n", full_path);
+	printf("full path: %s\nbody: %s\n", full_path, body);
 
 	FILE* f = fopen(full_path, "w");
 	size_t bytes_wrote = fwrite(body, sizeof(char), f_size, f); 
 
 	if (bytes_wrote < f_size || bytes_wrote == 0){
 		// error 
+		printf("error writting contents to file...\n");
 	}
 
 	fclose(f);
@@ -934,15 +948,15 @@ void handle_client_post(http_req_t* client_hdr, const clientinfo* ci, const char
 	char* path = client_hdr->req_path; 
 	// size_t path_len = strlen(path); 
 
-	printf("path recieved: %s\n", path);
+	printf("post path recieved: %s\n", path);
 
 	// check if the dir exists 
 
 	// just for the code crafters test
-	if (strncmp(path, "/files/", 7) != 0){
-		// missed done path 
-		goto fail; 
-	}
+	// if (strncmp(path, "/files/", 7) != 0){
+	// 	// missed done path 
+	// 	goto fail; 
+	// }
 
 	// read post req hdrs to look for encoding-type: chunked 
 
@@ -980,6 +994,8 @@ void handle_client_req_type(http_req_t* client_hdr, const clientinfo* ci, worker
 	char* verb = client_hdr->req_method; 
 	size_t verb_size = strlen(verb);
 
+	printf("VERB: %s\n", verb);
+
 	if (strncmp(verb, "GET", 3) == 0 && (verb_size == 3))
 		handle_client_get(client_hdr, ci, worker_in);
 	else if (strncmp(verb, "POST", 4) == 0 && (verb_size == 4))
@@ -1011,8 +1027,9 @@ void handle_client(const clientinfo* ci, workerinfo* worker_in){
 
 	int res = http_parse_all_hdrs(buf, &hdr);
 
+	printf("parse res: %d\n", res);
 	if (res == 0)
-		handle_client_get(&hdr, ci, worker_in);
+		handle_client_req_type(&hdr, ci, worker_in);
 	else 
 		handle_req_err(ci, -2);
 
