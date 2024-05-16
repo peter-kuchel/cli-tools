@@ -182,11 +182,6 @@ void add_httpresp_hdr(http_resp_t* resp, http_hdr_t* hdr){
 	
 }
 
-// void dealloc_httpresp(http_resp_t* resp){
-// 	// safeFree(resp->code); 
-// 	// safeFree(resp->content_type);
-// }
-
 ssize_t send_to_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, int flags){
 
 	
@@ -209,8 +204,6 @@ ssize_t recv_from_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, in
 	if (bytes_recv == -1){
 		perror("Recieving error: ");
 	}
-
-	// printf("socket descriptor: %d\n", ci->sd);
 
 	return bytes_recv; 
 }
@@ -236,7 +229,6 @@ void extract_file_extension(char* ext_buf, size_t ext_buf_size, char* path){
 	size_t ext_size = (path + pos) - path; 
     printf("%ld\n", ext_size);
     memset(ext_buf, 0, ext_buf_size);
-
 
 }
 
@@ -389,15 +381,7 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		if ( (http_req_hdr[value_pos + 1] == HTTP_HDR_CR && http_req_hdr[value_pos + 2] == HTTP_HDR_LF) ){
 			parsing--; 
 			pos = value_pos + 2;
-			// printf("all have been parsed\n");
-			// printf("pos is: %ld, size is: %ld\n", pos, req_size);
 		
-		// check if end of req has been reached 
-		// } else if ( (value_pos + 1 >= req_size) || (value_pos + 2 >= req_size)){
-		// 	// possibly no body is present ? since we know the last 2 chars are \r\n 
-		// 	// so this would possibly be valid too? 
-
-		// // else need to continue parsing so set up pos for next parsing
 		} 
 		else {
 			pos = value_pos; 
@@ -753,8 +737,6 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 		dir_copy = dir; 
 	}
 
-	// int cc_test_pass = 7;
-
 	struct stat f_stats;
 
 	size_t dir_len = strlen(dir_copy); 
@@ -768,8 +750,6 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 	memcpy(full_path, dir_copy, dir_len);
 	memcpy(full_path + dir_len, path, path_len);
 
-	// printf("full path: %s\n", full_path);
-
 	int ret = stat(full_path, &f_stats);
 
 	// something went wrong, let the client know
@@ -777,8 +757,6 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 		printf("File could not be found");
 		return ret; 
 	}
-
-	// printf("ret: %d\n", ret);
 
 	size_t f_size = (size_t)f_stats.st_size; 
 
@@ -903,32 +881,21 @@ void handle_client_post(http_req_t* client_hdr, const clientinfo* ci, const char
 
 	// check if the dir exists 
 
-	// just for the code crafters test
-	// if (strncmp(path, "/files/", 7) != 0){
-	// 	// missed done path 
-	// 	goto fail; 
-	// }
-
 	// read post req hdrs to look for encoding-type: chunked 
 
 	// recieve file 
-
-	// char* endptr; 
+ 
 	char* content_len_val = get_req_hdr_value(&(client_hdr->req_hdrs), "Content-Length");
 	if (content_len_val == NULL){
 		goto fail; 
 	}
 
-	// char* endptr; 
 	size_t content_len = strlen(client_hdr->body);
-	// long content_len = strtol(client_hdr->http_content_len, &endptr, 10);
 
 	if (content_len <= 0){
 		// error 
 		goto fail; 
 	}
-
-	// size_t f_size = (size_t)content_len; 
 
     save_client_body(client_hdr->body, content_len, path, dir, ci);
 
