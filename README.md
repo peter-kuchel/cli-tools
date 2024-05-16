@@ -11,7 +11,7 @@ A collection of command line tools for linux written in C for personal use and t
   * get more detailed ip info from the kernel using NETLINK sockets
 * minserver (*)
   * minimal HTTP 1.1 server for testing static websites 
-  * currently supports GET
+  * currently supports only GET and POST
 * pnginspect
   * inspects the chunks of a png file
 * portscan (*)
