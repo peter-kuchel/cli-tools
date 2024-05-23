@@ -12,16 +12,9 @@
 #include <pthread.h> 
 #include <math.h>
 
+#include "common.h"
 #include "minserver.h"
 
-void saferFree(void**pp){
-	if (pp != NULL && *pp != NULL){
-		free(*pp);
-		*pp = NULL; 
-	}
-}
-
-#define safeFree(p) saferFree((void**)&(p)) 
 
 
 void init_http_hdr_list(http_hdr_list* hdr_queue){

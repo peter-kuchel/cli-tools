@@ -6,7 +6,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99 -g
 THREADS = -pthread 
 CURL = -lcurl
-MATH = -lm 
+MATH = -lm
 
 COMMONS = $(SRC_DIR)/common.c
 IMGS	= $(SRC_DIR)/png.c
@@ -43,5 +43,5 @@ stego-v1:
 	$(CC) $(CFLAGS) $(COMMONS) $(IMGS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stegov1
 
 minserver:
-	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver 
+	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(COMMONS) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver 
 
