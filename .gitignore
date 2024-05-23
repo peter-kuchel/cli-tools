@@ -9,3 +9,4 @@ t.log
 test
 tooldesc
 rawsocktest
+src/test.c
