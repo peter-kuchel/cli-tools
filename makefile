@@ -8,10 +8,11 @@ THREADS = -pthread
 CURL = -lcurl
 MATH = -lm
 
-COMMONS = $(SRC_DIR)/common.c
-IMGS	= $(SRC_DIR)/png.c
-CRYPTO 	= $(SRC_DIR)/kcrypto.c 
-INET =  $(SRC_DIR)/inetutils.c
+COMMONS = 	$(SRC_DIR)/common.c
+IMGS	= 	$(SRC_DIR)/png.c
+CRYPTO 	= 	$(SRC_DIR)/kcrypto.c 
+INET =  	$(SRC_DIR)/inetutils.c
+LOG  =  	$(SRC_DIR)/logging.c
 
 all: 	mk-bin-dir 		\
 	 	port-scanner 	\
@@ -44,4 +45,7 @@ stego-v1:
 
 minserver:
 	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(COMMONS) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver 
+
+local-test:
+	$(CC) $(CFLAGS) $(LOGGING) $(LOG) $(SRC_DIR)/test.c -o $(BIN_DIR)/test
 
