@@ -13,6 +13,7 @@
 #include <math.h>
 
 #include "common.h"
+#include "logging.h"
 #include "minserver.h"
 
 
@@ -804,7 +805,7 @@ void handle_client_req_type(http_req_t* client_hdr, const clientinfo* ci, worker
 	char* verb = client_hdr->req_method; 
 	size_t verb_size = strlen(verb);
 
-	printf("VERB: %s\n", verb);
+	// printf("VERB: %s\n", verb);
 
 	if (strncmp(verb, "GET", 3) == 0 && (verb_size == 3))
 		handle_client_get(client_hdr, ci, worker_in);
@@ -876,63 +877,71 @@ int server_setup(struct sockaddr_in* server_addr){
 void* worker_handle_req(void* winfo){
 	workerinfo* data = (workerinfo*) winfo; 
 
-	// serverinfo serv_in = data->serv_in;
 	int server_fd = data->serv_in.server_fd; 
 
 	int new_client_fd; 
 	struct sockaddr_in client_addr; 
 	socklen_t client_addr_len = sizeof(client_addr); 
 
-	// clientinfo* ci = (clientinfo*)malloc(sizeof(clientinfo));
-	// clientinfo ci;
-
 	while(1){
-		// memset((char*)ci, 0, sizeof(clientinfo));
+		
 		new_client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 		if (new_client_fd < 0){
 			// error 
 			printf("ERROR HANDLING NEW CONNECTION");
 		}
-		// ci->sd = new_client_fd; 
-		// ci->addr = &client_addr;
+		
 		const clientinfo ci = {&client_addr, new_client_fd}; 
 		handle_client(&ci, data);
 
 		close(new_client_fd);
 	}	
 
-	// free(ci);
+	
 	pthread_exit(0);
 }
 
 void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
-	// char* token; 
 
 	argc--; argv++; 
 
 	while (argc){
-		if (strncmp(*argv, "--directory", 11) == 0){
+		if (strncmp(*argv, "-help", 5) == 0){
+			usage();
+			exit(0);
+		}
+		if (strncmp(*argv, "-d", 2) == 0){
 			serv_in->dir = *(argv + 1); 
+		}
+
+		if (strncmp(*argv, "-p", 2) == 0){
+			serv_in->port = (int)strtol_parse( *(argv + 1) );
+		}
+
+		if (strncmp(*argv, "-h", 2) == 0){
+			serv_in->host_addr = *(argv + 1); 
 		}
 
 		argc--; argv++; 
 	}
+
+	if (serv_in->dir == NULL) force_fail("file directory was not specified");
+	if (serv_in->port == 0) force_fail("port was not specified");
+	if (serv_in->host_addr == NULL) serv_in->host_addr = INADDR_ANY;
 }
 
 int main(int argc, char** argv) {
 
 	serverinfo serv_in; 
+	memset((char*)&serv_in, 0, sizeof(serverinfo));
 	handle_server_cli(argc, argv, &serv_in);
 
 	// Disable output buffering
 	setbuf(stdout, NULL);
 
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	printf("Logs from your program will appear here!\n");
-
 
 	struct sockaddr_in serv_addr = { .sin_family = AF_INET ,
-									 .sin_port = htons(4221),
+									 .sin_port = htons(8000),
 									 .sin_addr = { htonl(INADDR_ANY) },
 									};
 
@@ -962,7 +971,7 @@ int main(int argc, char** argv) {
 	for ( i = 0; i < n_workers; i++) pthread_join(tpool[i], NULL); 
 
 	close(server_fd);
-	free(serv_in.dir);
+	// free(serv_in.dir);
 
 	return 0;
 }

@@ -34,7 +34,9 @@
 
 
 typedef struct {
-	char* dir; 
+	char* dir;
+    char* host_addr;  
+    int port; 
 	int server_fd;
 } serverinfo;
 
@@ -96,3 +98,20 @@ typedef struct {
 	http_hdr_list resp_hdrs; 
 
 } http_resp_t; 
+
+void usage(){
+    printf(
+        "Usage: minserver -p <port> -h <host address> -d <file dir> [options]\n"
+        "\t-p <port> : port for server to listen on\n"
+        "\t-h <host address> : address of http server\n"
+        "\t\tif -h not specified then localhost is used\n"
+        "\t-d <file dir> : directory where to pull files from\n"
+        "\t-help : usage\n"
+    );
+}
+
+void force_fail(char* msg){
+    printf("%s", msg);
+    printf(", see usage with: -h");
+    exit(EXIT_FAILURE);
+}

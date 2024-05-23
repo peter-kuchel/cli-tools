@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <string.h> 
 
+// a collection of common functions that may be used across each tool 
 
 
 long strtol_parse(char* str); 
