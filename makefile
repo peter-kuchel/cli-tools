@@ -4,13 +4,13 @@ BIN_DIR = bin
 
 CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99 -g
-THREADS = -pthread 
+THREADS = -pthread
 CURL = -lcurl
 MATH = -lm
 
 COMMONS = 	$(SRC_DIR)/common.c
 IMGS	= 	$(SRC_DIR)/png.c
-CRYPTO 	= 	$(SRC_DIR)/kcrypto.c 
+CRYPTO 	= 	$(SRC_DIR)/kcrypto.c
 INET =  	$(SRC_DIR)/inetutils.c
 LOG  =  	$(SRC_DIR)/logging.c
 
@@ -44,7 +44,9 @@ stego-v1:
 	$(CC) $(CFLAGS) $(COMMONS) $(IMGS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stegov1
 
 minserver:
-	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(COMMONS) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver 
+	$(CC) $(CFLAGS) $(CURL) \
+	$(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) \
+	$(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
 
 local-test:
 	$(CC) $(CFLAGS) $(LOGGING) $(LOG) $(SRC_DIR)/test.c -o $(BIN_DIR)/test

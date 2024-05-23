@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <arpa/inet.h> 
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -13,6 +14,7 @@
 #include <math.h>
 
 #include "common.h"
+#include "inetutils.h"
 #include "logging.h"
 #include "minserver.h"
 
@@ -915,11 +917,20 @@ void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
 		}
 
 		if (strncmp(*argv, "-p", 2) == 0){
-			serv_in->port = (int)strtol_parse( *(argv + 1) );
+			long _port = strtol_parse( *(argv + 1) );
+			if (_port > PORT_MAX){
+				printf("Error - port is outside of acceptable range\n");
+				exit(0);
+			}
+			serv_in->port = (uint32_t)_port;
 		}
 
 		if (strncmp(*argv, "-h", 2) == 0){
 			serv_in->host_addr = *(argv + 1); 
+		}
+
+		if (strncmp(*argv, "-ipv6", 5) == 0){
+			serv_in->af_fam = AF_INET6;
 		}
 
 		argc--; argv++; 
@@ -927,23 +938,27 @@ void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
 
 	if (serv_in->dir == NULL) force_fail("file directory was not specified");
 	if (serv_in->port == 0) force_fail("port was not specified");
-	if (serv_in->host_addr == NULL) serv_in->host_addr = INADDR_ANY;
+
+	if (serv_in->host_addr == NULL) serv_in->host_addr = "127.0.0.1";
+	else if (strncmp(serv_in->host_addr, "localhost", 9) == 0) serv_in->host_addr = "127.0.0.1";
 }
 
 int main(int argc, char** argv) {
 
 	serverinfo serv_in; 
+	struct sockaddr_in serv_addr; 
+
 	memset((char*)&serv_in, 0, sizeof(serverinfo));
+
+	serv_in.af_fam = AF_INET; 				// default af fam 
 	handle_server_cli(argc, argv, &serv_in);
 
 	// Disable output buffering
 	setbuf(stdout, NULL);
 
-
-	struct sockaddr_in serv_addr = { .sin_family = AF_INET ,
-									 .sin_port = htons(8000),
-									 .sin_addr = { htonl(INADDR_ANY) },
-									};
+	serv_addr.sin_family = serv_in.af_fam; 
+	serv_addr.sin_port = htons(serv_in.port);
+	serv_addr.sin_addr.s_addr = inet_addr(serv_in.host_addr);
 
 	int server_fd = server_setup(&serv_addr);
 	
@@ -960,6 +975,7 @@ int main(int argc, char** argv) {
 	workerinfo* winfo = (workerinfo*)malloc(n_workers * sizeof(workerinfo));
 
 	int i; 
+	printf("Server logs being sent to: %s, check there for more details\n", MINSERV_LOG_FILE);
 	for (i = 0; i < n_workers; i++){
 
 		winfo[i].serv_in = serv_in; 

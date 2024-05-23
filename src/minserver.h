@@ -1,4 +1,7 @@
+#ifndef CLI_MINSERVER_H
+#define CLI_MINSERVER_H
 
+#define MINSERV_LOG_FILE    "minserv_logs.log"
 
 #define HTTP_GET_REQ_SIZE 	1 << 12					// assumed size of req (will only read 4096 bytes)
 #define HTTP_POST_REQ_SIZE  1 << 16					// 63556 limit for POST
@@ -36,8 +39,9 @@
 typedef struct {
 	char* dir;
     char* host_addr;  
-    int port; 
+    uint32_t port; 
 	int server_fd;
+	int af_fam; 
 } serverinfo;
 
 typedef struct { 
@@ -106,12 +110,17 @@ void usage(){
         "\t-h <host address> : address of http server\n"
         "\t\tif -h not specified then localhost is used\n"
         "\t-d <file dir> : directory where to pull files from\n"
+		"\t-ipv6: specify that the host address being used is ipv6\n"
+		"\t\tdefault is ipv4"
         "\t-help : usage\n"
     );
 }
 
 void force_fail(char* msg){
     printf("%s", msg);
-    printf(", see usage with: -h");
+    printf(", see usage with: -help\n");
     exit(EXIT_FAILURE);
 }
+
+
+#endif 
