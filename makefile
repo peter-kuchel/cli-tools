@@ -5,7 +5,7 @@ BIN_DIR = bin
 CC = gcc
 CFLAGS = -Wall -Wextra -std=gnu99 -g
 THREADS = -pthread 
-CURL = -CURL
+CURL = -lcurl
 MATH = -lm 
 
 COMMONS = $(SRC_DIR)/common.c
