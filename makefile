@@ -44,9 +44,7 @@ stego-v1:
 	$(CC) $(CFLAGS) $(COMMONS) $(IMGS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stegov1
 
 minserver:
-	$(CC) $(CFLAGS) $(CURL) \
-	$(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) \
-	$(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
+	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
 
 local-test:
 	$(CC) $(CFLAGS) $(LOGGING) $(LOG) $(SRC_DIR)/test.c -o $(BIN_DIR)/test
