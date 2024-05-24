@@ -18,6 +18,7 @@
 #include "logging.h"
 #include "minserver.h"
 
+// static Logger log_info; 
 
 
 void init_http_hdr_list(http_hdr_list* hdr_queue){
@@ -106,24 +107,40 @@ ssize_t recv_from_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, in
 char* handle_mime_type(char* file_ext){
 
 
-    printf("%s\n", file_ext);
+    printf("file extension: %s\n", file_ext);
+
+	if (strncmp(file_ext, "js", 2) == 0) 	return "text/javascript";
+	if (strncmp(file_ext, "css", 3) == 0) 	return "text/css";
+	if (strncmp(file_ext, "html", 4) == 0) 	return "text/html";
+	if (strncmp(file_ext, "png", 3) == 0) 	return "image/png";
+	if (strncmp(file_ext, "pdf", 3) == 0) 	return "application/pdf";
+	if (strncmp(file_ext, "json", 4) == 0) 	return "application/json";
+
 	// default 
 	return "text/plain"; 
 }
 
-void extract_file_extension(char* ext_buf, size_t ext_buf_size, char* path){
+int extract_file_extension(char* ext_buf, size_t ext_buf_size, const char* path){
 
 	size_t pos = 0;
 	size_t path_len = strlen(path);
 	while (path[pos] != '.' && pos < path_len) pos++;
 
-	if (pos == path_len){
-		// error
-	}
+	pos++; 
+	// error since there is nothing after the . for the file ext 
+	if (pos >= path_len) return -1; 
 
-	size_t ext_size = (path + pos) - path; 
-    printf("%ld\n", ext_size);
-    memset(ext_buf, 0, ext_buf_size);
+	// size_t ext_size = (path + pos) - path; 
+    // printf("%ld\n", ext_size);
+
+	size_t ext_len = strlen(path + pos); 		// len of the file ext 
+
+	size_t _len_to_use = (ext_len < ext_buf_size) ? ext_len : ext_buf_size; 
+
+    memset(ext_buf, 0, ext_buf_size + 1);
+	memcpy(ext_buf, path + pos, _len_to_use);
+
+	return 0; 
 
 }
 
@@ -250,7 +267,6 @@ size_t http_parse_req_hdr_fields(char* http_req_hdr, http_req_t* parsed_hdr, siz
 		value_pos = name_pos;
 
 		// then capture field value 
-
 		do {
 			
 			if (value_pos + 2 >= req_size){
@@ -301,11 +317,12 @@ size_t http_parse_req_body(char* http_req_hdr, http_req_t* parsed_hdr, size_t cu
 	size_t req_size = strlen(http_req_hdr); 
 
 	// printf("%s\n", http_req_hdr);
-	for (size_t u =0; u < req_size + 2; u++) printf("%x ", http_req_hdr[u]);
-	printf("\n");
+	// for (size_t u =0; u < req_size + 2; u++) printf("%x ", http_req_hdr[u]);
+	// printf("\n");
 
 	// check first if there is no body
-	printf("%ld == %ld\n", req_size, pos);
+	// printf("%ld == %ld\n", req_size, pos);
+
 	if (pos == req_size || pos + 1 == req_size){
 		return pos; 
 	}
@@ -390,14 +407,14 @@ void http_build_resp_hdr(http_resp_t* resp, char* msg){
 
 	pos += sprintf(msg + pos, "\r\n%s\r\n", resp->body);
 
-	printf("pos size: %d\n", pos);
+	// printf("pos size: %d\n", pos);
 }
 
 void http_send_resp(http_resp_t* resp, const clientinfo* ci){
 	
 	size_t msg_size = http_calc_resp_size(resp);
 
-	printf("msg_size: %ld\n", msg_size);
+	// printf("msg_size: %ld\n", msg_size);
 
 	char msg[msg_size]; 														
 	memset(msg, 0, msg_size);
@@ -405,7 +422,7 @@ void http_send_resp(http_resp_t* resp, const clientinfo* ci){
 	// printf("ci ptr befor: %p\n", ci);
 	http_build_resp_hdr(resp, msg);
 	// printf("ci ptr after: %p\n", ci);
-	printf("msg is: %s\n", msg);
+	// printf("msg is: %s\n", msg);
 
 	
 	msg_size--;			// not to send null terminator over 
@@ -581,9 +598,9 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 			sprintf(chunk + pos, "%s", send_end);
 		
 
-		printf("Chunk:\n%s\n", chunk);
+		// printf("Chunk:\n%s\n", chunk);
 
-		printf("\n");
+		// printf("\n");
 		send_to_client((uint8_t*)chunk, total_chunk_size, ci, 0);
 		
 	}
@@ -592,7 +609,7 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 	return 0;
 }
 
-int send_file_body(const clientinfo* ci, FILE* f, size_t f_size){
+int send_file_body(const clientinfo* ci, FILE* f, size_t f_size, char* file_ext){
 	int status_num = HTTP_RESP_OK;
 	char str_num[NUM_TO_STR_SIZE] = {0};
 	char f_content[f_size];
@@ -609,10 +626,10 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size){
 	resp.code = &_code; 
 	resp.body = f_content;
 
-	// printf("BODY: %s\n", resp.body);
 	sprintf(str_num, "%ld", strlen(resp.body));
 	http_hdr_t content_len = {"Content-Length", str_num};
-	http_hdr_t content_type = { "Content-Type", "application/octet-stream" };
+
+	http_hdr_t content_type = { "Content-Type", handle_mime_type(file_ext) };
 
 	add_httpresp_hdr(&resp, &content_type);
 	add_httpresp_hdr(&resp, &content_len);
@@ -623,42 +640,44 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size){
 }
 
 int req_client_file(const clientinfo* ci, const char* path, char* dir){
-	char* dir_copy; 
-	if (dir == NULL){
-		printf("dir was not passed to server\n");
-		dir_copy = HTTP_EMPTY; 
-
-	} else{
-		dir_copy = dir; 
-	}
-
+	
 	struct stat f_stats;
 
-	size_t dir_len = strlen(dir_copy); 
+	size_t dir_len = strlen(dir); 
 	size_t path_len = strlen(path);
 	size_t full_len = dir_len + path_len + 1;
 	
 	char full_path[full_len];
+	
 
 	memset(full_path, 0, full_len);
 
-	memcpy(full_path, dir_copy, dir_len);
+	memcpy(full_path, dir, dir_len);
 	memcpy(full_path + dir_len, path, path_len);
+
+	printf("Full path: %s\n", full_path);
 
 	int ret = stat(full_path, &f_stats);
 
 	// something went wrong, let the client know
 	if (ret != 0){
-		printf("File could not be found");
+		printf("File could not be found\n");
 		return ret; 
 	}
 
 	size_t f_size = (size_t)f_stats.st_size; 
 
+	char file_ext[MINSERV_F_EXT_SIZE + 1];			// +1 for the null terminator 
+	int res = extract_file_extension(file_ext, MINSERV_F_EXT_SIZE, path);
+
+	// error where the file ext is not valid - send 404 
+	if (res < 0) return -3; 
+	
+
 	FILE* f = fopen(full_path, "r"); 
 
 	if (f_size <= HTTP_CHUNK_SIZE)
-		send_file_body(ci, f, f_size);
+		send_file_body(ci, f, f_size, file_ext);
 	else 
 		send_file_chunks(ci, f);
 
@@ -675,46 +694,19 @@ void handle_client_get(http_req_t* client_hdr, const clientinfo* ci, workerinfo*
 
 	printf("path recieved: %s\n", path);
 
-	int non_path_req = 0; 
-	if (strncmp(path, "/echo/", 6) == 0){
-		req_echo(client_hdr, ci);
-	} 
+	// if path is '/' then return index.html 
+	if (strncmp(path, "/", path_len) == 0) 
+		path = "/index.html";
 	
-	else if (strncmp(path, "/user-agent", 11) == 0 && (path_len == 11)){
-		printf("user agent req for: %s\n", path);
-		
-		req_client_field(ci, &(client_hdr->req_hdrs), "User-Agent");
-	
-	} else if (strncmp(path, "/host", 5) == 0 && (path_len == 5)){
-		printf("host: %s\n", path);
+	int req_status = req_client_file(ci, path, worker_in->serv_in.dir);
 
-		req_client_field(ci, &(client_hdr->req_hdrs), "Host");
+	printf("req_status: %d\n", req_status);
 
-	} else if (strncmp(path, "/", 1) == 0 && ( path_len == 1)){
-			http_resp_t resp; 
-			init_http_resp(&resp);
-			int status_num = HTTP_RESP_OK; 
-			http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
-			resp.code = &_code;
-			resp.body = HTTP_EMPTY; 
-
-			http_send_resp(&resp, ci);
-			
-	} else {
-		non_path_req++; 
+	if (req_status != 0){
+		printf("handling err\n");
+		handle_req_err(ci, req_status);
 	}
 	
-	if (non_path_req){
-
-		int req_status = req_client_file(ci, path, worker_in->serv_in.dir);
-
-		if (req_status != 0){
-			printf("handling err\n");
-			handle_req_err(ci, req_status);
-		}
-	}
-	
-
 }
 
 int save_client_body(
@@ -774,11 +766,6 @@ void handle_client_post(http_req_t* client_hdr, const clientinfo* ci, const char
 
 	printf("post path recieved: %s\n", path);
 
-	// check if the dir exists 
-
-	// read post req hdrs to look for encoding-type: chunked 
-
-	// recieve file 
  
 	char* content_len_val = get_req_hdr_value(&(client_hdr->req_hdrs), "Content-Length");
 	if (content_len_val == NULL){
@@ -852,10 +839,10 @@ void handle_client(const clientinfo* ci, workerinfo* worker_in){
 }
 
 
-int server_setup(struct sockaddr_in* server_addr){
+int server_setup(struct sockaddr* server_addr, int af_fam){
 	int server_fd; 
 
-	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	server_fd = socket(af_fam, SOCK_STREAM, 0);
 	if (server_fd == -1) {
 		printf("Socket creation failed: %s...\n", strerror(errno));
 		return 1;
@@ -867,8 +854,9 @@ int server_setup(struct sockaddr_in* server_addr){
 		return 1;
 	}
 	
-	
-	if (bind(server_fd, (struct sockaddr *) server_addr, sizeof(*server_addr)) != 0) {
+	socklen_t _size = af_fam == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6); 
+
+	if (bind(server_fd, server_addr, _size) != 0) {
 		printf("Bind failed: %s \n", strerror(errno));
 		return 1;
 	}
@@ -930,6 +918,7 @@ void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
 		}
 
 		if (strncmp(*argv, "-ipv6", 5) == 0){
+			printf("ipv6 enabled\n");
 			serv_in->af_fam = AF_INET6;
 		}
 
@@ -946,7 +935,11 @@ void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
 int main(int argc, char** argv) {
 
 	serverinfo serv_in; 
-	struct sockaddr_in serv_addr; 
+	struct sockaddr* serv_addr;
+
+	struct sockaddr_in addr_ipv4;
+	struct sockaddr_in6 addr_ipv6; 
+	struct in6_addr _addr6; 
 
 	memset((char*)&serv_in, 0, sizeof(serverinfo));
 
@@ -956,11 +949,29 @@ int main(int argc, char** argv) {
 	// Disable output buffering
 	setbuf(stdout, NULL);
 
-	serv_addr.sin_family = serv_in.af_fam; 
-	serv_addr.sin_port = htons(serv_in.port);
-	serv_addr.sin_addr.s_addr = inet_addr(serv_in.host_addr);
+	if (serv_in.af_fam == AF_INET){
+		addr_ipv4.sin_family = serv_in.af_fam; 
+		addr_ipv4.sin_port = htons(serv_in.port);
+		addr_ipv4.sin_addr.s_addr = inet_addr(serv_in.host_addr);
 
-	int server_fd = server_setup(&serv_addr);
+		serv_addr = (struct sockaddr*)&addr_ipv4;
+
+	} else {
+		addr_ipv6.sin6_family = serv_in.af_fam;
+		addr_ipv6.sin6_port = htons(serv_in.port);
+		if (inet_pton(serv_in.af_fam, serv_in.host_addr, &_addr6) < 1){
+			perror("Something went wrong trying to convert ipv6 address from text to bin format\n");
+			perror(0); 
+			exit(1);
+		}
+
+		addr_ipv6.sin6_addr = _addr6; 
+		serv_addr = (struct sockaddr*)&addr_ipv6;
+
+	}
+	
+
+	int server_fd = server_setup(serv_addr, serv_in.af_fam);
 	
 	int connection_backlog = 5;
 	if (listen(server_fd, connection_backlog) != 0) {
@@ -975,6 +986,7 @@ int main(int argc, char** argv) {
 	workerinfo* winfo = (workerinfo*)malloc(n_workers * sizeof(workerinfo));
 
 	int i; 
+	printf("Server running on: %s:%d\n", serv_in.host_addr, serv_in.port);
 	printf("Server logs being sent to: %s, check there for more details\n", MINSERV_LOG_FILE);
 	for (i = 0; i < n_workers; i++){
 

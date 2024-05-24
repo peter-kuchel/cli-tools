@@ -2,6 +2,7 @@
 #define CLI_MINSERVER_H
 
 #define MINSERV_LOG_FILE    "minserv_logs.log"
+#define MINSERV_F_EXT_SIZE	7						// max assumed size of the file extension
 
 #define HTTP_GET_REQ_SIZE 	1 << 12					// assumed size of req (will only read 4096 bytes)
 #define HTTP_POST_REQ_SIZE  1 << 16					// 63556 limit for POST
@@ -16,7 +17,7 @@
 
 #define HTTP_SERVER_VER "HTTP/1.1"					// version of server 
 #define HTTP_EMPTY		""							// empty string for empty requests
-#define HTTP_CHUNK_SIZE 1 << 15						// size of a chunk to be sent
+#define HTTP_CHUNK_SIZE 1 << 16						// size of a chunk to be sent
 
 #define HTTP_RESP_OK 			200 
 #define HTTP_RESP_CREATED		201
