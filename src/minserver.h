@@ -4,6 +4,10 @@
 #define MINSERV_LOG_FILE    "minserv_logs.log"
 #define MINSERV_F_EXT_SIZE	7						// max assumed size of the file extension
 
+#define MINSERV_BAD_REQ		-2
+#define MINSERV_NOT_FOUND	-3
+#define MINSERV_SERV_ERR	-4
+
 #define HTTP_GET_REQ_SIZE 	1 << 12					// assumed size of req (will only read 4096 bytes)
 #define HTTP_POST_REQ_SIZE  1 << 16					// 63556 limit for POST
 
@@ -98,6 +102,10 @@ typedef struct {
 	http_hdr_list resp_hdrs; 
 
 } http_resp_t; 
+
+// enum http_err_handler {
+// 	MINSERV_BAD_REQ = -2
+// }
 
 void usage(){
     printf(

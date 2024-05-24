@@ -513,11 +513,16 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 int send_file_body(const clientinfo* ci, FILE* f, size_t f_size, char* file_ext){
 	int status_num = HTTP_RESP_OK;
 	char str_num[NUM_TO_STR_SIZE] = {0};
-	char f_content[f_size];
 
-	memset(f_content, 0, f_size);
+	char f_content[f_size + 1];
+	memset(f_content, 0, f_size + 1);
 
 	fread(f_content, sizeof(char), f_size, f);
+
+	if (ferror(f) != 0){
+
+		return MINSERV_SERV_ERR; 
+	}
 	
 	http_resp_t resp; 
 	init_http_resp(&resp);
@@ -527,7 +532,8 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size, char* file_ext)
 	resp.code = &_code; 
 	resp.body = f_content;
 
-	sprintf(str_num, "%ld", strlen(resp.body));
+	// sprintf(str_num, "%ld", strlen(resp.body));
+	sprintf(str_num, "%ld", f_size);
 	http_hdr_t content_len = {"Content-Length", str_num};
 
 	http_hdr_t content_type = { "Content-Type", handle_mime_type(file_ext) };
@@ -550,7 +556,6 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 	
 	char full_path[full_len];
 	
-
 	memset(full_path, 0, full_len);
 
 	memcpy(full_path, dir, dir_len);
@@ -558,31 +563,39 @@ int req_client_file(const clientinfo* ci, const char* path, char* dir){
 
 	printf("Full path: %s\n", full_path);
 
-	int ret = stat(full_path, &f_stats);
+	int file_status = stat(full_path, &f_stats);
 
 	// something went wrong, let the client know
-	if (ret != 0){
+	if (file_status != 0){
 		printf("File could not be found\n");
-		return ret; 
+		return MINSERV_NOT_FOUND; 
 	}
 
 	size_t f_size = (size_t)f_stats.st_size; 
 
 	char file_ext[MINSERV_F_EXT_SIZE + 1];			// +1 for the null terminator 
-	int res = extract_file_extension(file_ext, MINSERV_F_EXT_SIZE, path);
+	extract_file_extension(file_ext, MINSERV_F_EXT_SIZE, path);
 
 	// error where the file ext is not valid - send 404 
-	if (res < 0) return -3; 
+	// if (res < 0) return MINSERV_NOT_FOUND; 
 	
 
 	FILE* f = fopen(full_path, "r"); 
 
-	if (f_size <= HTTP_CHUNK_SIZE)
-		send_file_body(ci, f, f_size, file_ext);
-	else 
-		send_file_chunks(ci, f);
+	if (f == NULL) return MINSERV_SERV_ERR;
+
+	int send_status; 
+	if (f_size <= HTTP_CHUNK_SIZE){
+		send_status = send_file_body(ci, f, f_size, file_ext);
+	}
+	else {
+		printf("sending as chunks");
+		send_status = send_file_chunks(ci, f);
+	}
 
 	fclose(f);
+
+	if (send_status != 0) return MINSERV_SERV_ERR;
 
 	return 0; 
 
@@ -830,7 +843,7 @@ int main(int argc, char** argv) {
 	setbuf(stdout, NULL);
 
 	serverinfo serv_in; 
-	struct sockaddr* serv_addr;
+	struct sockaddr* serv_addr = NULL;
 
 	struct sockaddr_in addr_ipv4;
 	struct sockaddr_in6 addr_ipv6; 
