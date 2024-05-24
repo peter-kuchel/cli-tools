@@ -18,13 +18,10 @@
 #include "logging.h"
 #include "minserver.h"
 
-// static Logger log_info; 
-
 
 void init_http_hdr_list(http_hdr_list* hdr_queue){
 	hdr_queue->size = 0; 
 	hdr_queue->cap = HTTP_TOTAL_HDR_DEF; 
-
 }
 
 void init_http_resp(http_resp_t* resp){
@@ -51,7 +48,6 @@ int add_http_hdr_field(http_hdr_list* hdr_queue, char* name, char* value){
 	hdr_queue->size++; 
 
 	return 0; 
-
 }
 
 void dealloc_http_hdr_field(http_hdr_list* hdr_queue){
@@ -75,12 +71,10 @@ void add_httpresp_hdr(http_resp_t* resp, http_hdr_t* hdr){
 
 	resp->resp_hdrs.hdrs[curr_size] = *hdr; 
 	resp->resp_hdrs.size++;
-	
 }
 
 ssize_t send_to_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, int flags){
 
-	
 	socklen_t dest_size = sizeof(*(ci->addr));
 	ssize_t bytes_sent = sendto(ci->sd, buf, buf_size, flags, (const struct sockaddr*)(ci->addr), dest_size);
 
@@ -93,7 +87,6 @@ ssize_t send_to_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, int 
 
 ssize_t recv_from_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, int flags){
 
-	
 	socklen_t src_size = sizeof(*(ci->addr));
 	ssize_t bytes_recv = recvfrom(ci->sd, buf, buf_size, flags, (struct sockaddr*)(ci->addr), &src_size);
 
@@ -106,7 +99,6 @@ ssize_t recv_from_client(uint8_t* buf, size_t buf_size, const clientinfo* ci, in
 
 char* handle_mime_type(char* file_ext){
 
-
     printf("file extension: %s\n", file_ext);
 
 	if (strncmp(file_ext, "js", 2) == 0) 	return "text/javascript";
@@ -116,7 +108,7 @@ char* handle_mime_type(char* file_ext){
 	if (strncmp(file_ext, "pdf", 3) == 0) 	return "application/pdf";
 	if (strncmp(file_ext, "json", 4) == 0) 	return "application/json";
 
-	// default 
+	// default (or not recognized)
 	return "text/plain"; 
 }
 
@@ -129,9 +121,6 @@ int extract_file_extension(char* ext_buf, size_t ext_buf_size, const char* path)
 	pos++; 
 	// error since there is nothing after the . for the file ext 
 	if (pos >= path_len) return -1; 
-
-	// size_t ext_size = (path + pos) - path; 
-    // printf("%ld\n", ext_size);
 
 	size_t ext_len = strlen(path + pos); 		// len of the file ext 
 
@@ -148,25 +137,18 @@ char* resp_code_type(int status_num){
 	switch(status_num){
 		case HTTP_RESP_OK: 
 			return "Okay";
-		
 		case HTTP_RESP_CREATED:
 			return "Created";
-
 		case HTTP_RESP_FORBIDDEN:
 			return "Forbidden"; 
-		
 		case HTTP_RESP_INT_SERV_ERR:
 			return "Internal Server Error";
-		
 		case HTTP_RESP_NOT_IMPLT:
 			return "Not Implemented";
-
 		case HTTP_RESP_BAD_GATE:
 			return "Bad Gateway";
-
 		case HTTP_RESP_SERV_UNV:
-			return "Service Unavailable";
-			 
+			return "Service Unavailable"; 
 		default: 
 			return "Not Found";
 	}
@@ -316,13 +298,6 @@ size_t http_parse_req_body(char* http_req_hdr, http_req_t* parsed_hdr, size_t cu
 
 	size_t req_size = strlen(http_req_hdr); 
 
-	// printf("%s\n", http_req_hdr);
-	// for (size_t u =0; u < req_size + 2; u++) printf("%x ", http_req_hdr[u]);
-	// printf("\n");
-
-	// check first if there is no body
-	// printf("%ld == %ld\n", req_size, pos);
-
 	if (pos == req_size || pos + 1 == req_size){
 		return pos; 
 	}
@@ -382,12 +357,6 @@ size_t http_calc_resp_size(http_resp_t* resp){
 		resp_size += strlen(hdrs[i].hdr_name) + 2 + strlen(hdrs[i].hdr_value) + 2;		// +1 for space 
 	}
 
-	// before without the firsr '2 + ' and the ' + 1', resulted in a minor 
-	// buffer overflow which changes the lsb's of the clientinfo ptr 
-	// '2 + ' added because an extra \r\n was not 
-	// accounted for in the len of the body. 
-	// ' + 1' added since the msg buffer is being treated as a string, 
-	// and the null terminator was not accounted for.  
 	resp_size += 2 + strlen(resp->body) + 1 + 2;
 
 	return resp_size;
@@ -406,29 +375,20 @@ void http_build_resp_hdr(http_resp_t* resp, char* msg){
 
 
 	pos += sprintf(msg + pos, "\r\n%s\r\n", resp->body);
-
-	// printf("pos size: %d\n", pos);
 }
 
 void http_send_resp(http_resp_t* resp, const clientinfo* ci){
 	
 	size_t msg_size = http_calc_resp_size(resp);
 
-	// printf("msg_size: %ld\n", msg_size);
-
 	char msg[msg_size]; 														
 	memset(msg, 0, msg_size);
 	
-	// printf("ci ptr befor: %p\n", ci);
 	http_build_resp_hdr(resp, msg);
-	// printf("ci ptr after: %p\n", ci);
-	// printf("msg is: %s\n", msg);
-
 	
 	msg_size--;			// not to send null terminator over 
 	send_to_client((uint8_t*)msg, msg_size, ci, 0); 
 }
-
 
 void send_server_err(const clientinfo* ci, int err_code){
 
@@ -473,30 +433,29 @@ void handle_req_err(const clientinfo* ci, int nerrno){
 	send_server_err(ci, errcode);
 }
 
-void req_echo(http_req_t* client_hdr, const clientinfo* ci){
+// void req_echo(http_req_t* client_hdr, const clientinfo* ci){
 
-	int status_num = HTTP_RESP_OK;
-	http_resp_t resp; 
-	init_http_resp(&resp);
+// 	int status_num = HTTP_RESP_OK;
+// 	http_resp_t resp; 
+// 	init_http_resp(&resp);
 
-	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
-	resp.code = &_code; 
-	resp.body = client_hdr->req_path + 6;
+// 	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
+// 	resp.code = &_code; 
+// 	resp.body = client_hdr->req_path + 6;
 	
-	http_hdr_t content_type = {"Content-Type", "text/plain"};
-	add_httpresp_hdr(&resp, &content_type);
+// 	http_hdr_t content_type = {"Content-Type", "text/plain"};
+// 	add_httpresp_hdr(&resp, &content_type);
 
-	char _content_len[NUM_TO_STR_SIZE] = {0}; 
-	sprintf(_content_len, "%ld", strlen(resp.body));
+// 	char _content_len[NUM_TO_STR_SIZE] = {0}; 
+// 	sprintf(_content_len, "%ld", strlen(resp.body));
 
-	http_hdr_t content_len = {"Content-Length", _content_len};
-	add_httpresp_hdr(&resp, &content_len);
+// 	http_hdr_t content_len = {"Content-Length", _content_len};
+// 	add_httpresp_hdr(&resp, &content_len);
 	
 
-	http_send_resp(&resp, ci);
+// 	http_send_resp(&resp, ci);
 
-}
-
+// }
 
 char* get_req_hdr_value(http_hdr_list* req_hdrs, const char* name){
 	char* resp_value = NULL; 
@@ -514,38 +473,38 @@ char* get_req_hdr_value(http_hdr_list* req_hdrs, const char* name){
 	return resp_value; 
 }
 
-void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs, char* field_to_find){ 
+// void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs, char* field_to_find){ 
 
 	
-	// check to see that hdr requested was included 
-	char* resp_value = get_req_hdr_value(req_hdrs, field_to_find); 
+// 	// check to see that hdr requested was included 
+// 	char* resp_value = get_req_hdr_value(req_hdrs, field_to_find); 
 
-	if (resp_value == NULL) {
-		printf("msg not found\n");
-		handle_req_err(ci, -3);
-		return; 
-	}
+// 	if (resp_value == NULL) {
+// 		printf("msg not found\n");
+// 		handle_req_err(ci, -3);
+// 		return; 
+// 	}
 	
-	int status_num = HTTP_RESP_OK;
+// 	int status_num = HTTP_RESP_OK;
 
-	http_resp_t resp;  
-	init_http_resp(&resp);
+// 	http_resp_t resp;  
+// 	init_http_resp(&resp);
 
-	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
-	resp.code = &_code;
-	resp.body = resp_value; 
+// 	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
+// 	resp.code = &_code;
+// 	resp.body = resp_value; 
 
-	http_hdr_t content_type = {"Content-Type", "text/plain"};
-	add_httpresp_hdr(&resp, &content_type);
+// 	http_hdr_t content_type = {"Content-Type", "text/plain"};
+// 	add_httpresp_hdr(&resp, &content_type);
 
-	char _content_len[NUM_TO_STR_SIZE] = {0}; 
-	sprintf(_content_len, "%ld", strlen(resp.body));
+// 	char _content_len[NUM_TO_STR_SIZE] = {0}; 
+// 	sprintf(_content_len, "%ld", strlen(resp.body));
 
-	http_hdr_t content_len = {"Content-Length", _content_len};
-	add_httpresp_hdr(&resp, &content_len);
+// 	http_hdr_t content_len = {"Content-Length", _content_len};
+// 	add_httpresp_hdr(&resp, &content_len);
 
-	http_send_resp(&resp, ci); 
-} 
+// 	http_send_resp(&resp, ci); 
+// } 
 
 int send_file_chunks(const clientinfo* ci, FILE* f){
 
@@ -604,7 +563,6 @@ int send_file_chunks(const clientinfo* ci, FILE* f){
 		send_to_client((uint8_t*)chunk, total_chunk_size, ci, 0);
 		
 	}
-
 
 	return 0;
 }
@@ -709,13 +667,7 @@ void handle_client_get(http_req_t* client_hdr, const clientinfo* ci, workerinfo*
 	
 }
 
-int save_client_body(
-		char* body, 
-		size_t f_size, 
-		const char* path, 
-		const char* dir,
-		const clientinfo* ci 
-){
+int save_client_body(char* body, size_t f_size, const char* path, const char* dir, const clientinfo* ci){
 	char* dir_copy; 
 	if (dir == NULL) dir_copy = HTTP_EMPTY; 
 	else dir_copy = (char*)dir; 
@@ -805,7 +757,6 @@ void handle_client_req_type(http_req_t* client_hdr, const clientinfo* ci, worker
 		handle_req_err(ci, -2);
 }
 
-
 void handle_client(const clientinfo* ci, workerinfo* worker_in){
 
 	printf("[Thread %d] handling new client request\n", worker_in->tid);
@@ -837,7 +788,6 @@ void handle_client(const clientinfo* ci, workerinfo* worker_in){
 
 	printf("Worker finised\n");
 }
-
 
 int server_setup(struct sockaddr* server_addr, int af_fam){
 	int server_fd; 
@@ -887,7 +837,6 @@ void* worker_handle_req(void* winfo){
 		close(new_client_fd);
 	}	
 
-	
 	pthread_exit(0);
 }
 
@@ -934,6 +883,9 @@ void handle_server_cli(int argc, char** argv, serverinfo* serv_in){
 
 int main(int argc, char** argv) {
 
+	// Disable output buffering
+	setbuf(stdout, NULL);
+
 	serverinfo serv_in; 
 	struct sockaddr* serv_addr;
 
@@ -945,9 +897,6 @@ int main(int argc, char** argv) {
 
 	serv_in.af_fam = AF_INET; 				// default af fam 
 	handle_server_cli(argc, argv, &serv_in);
-
-	// Disable output buffering
-	setbuf(stdout, NULL);
 
 	if (serv_in.af_fam == AF_INET){
 		addr_ipv4.sin_family = serv_in.af_fam; 
@@ -999,7 +948,6 @@ int main(int argc, char** argv) {
 	for ( i = 0; i < n_workers; i++) pthread_join(tpool[i], NULL); 
 
 	close(server_fd);
-	// free(serv_in.dir);
 
 	return 0;
 }

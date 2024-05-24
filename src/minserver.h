@@ -51,18 +51,13 @@ typedef struct {
 } workerinfo; 
 
 typedef struct {
-	
 	struct sockaddr_in* addr;					// client ipv4 addr  
 	int sd;										// socket descriptor 
-
 } clientinfo; 
 
- 
 typedef struct {
-
 	int status_num; 
 	char* status_msg;
-
 } http_resp_code_t; 
 
 typedef struct {
