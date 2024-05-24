@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-// typedef struct {
-//     char* fname; 
-//     FILE* fstream;
-// } Logger; 
+typedef struct {
+    char* fname; 
+    FILE* fstream;
+} Logger; 
 
 int log_to_file_stream(FILE* log_file, char* msg);
 int log_to_file(char* log_file, char* msg);
