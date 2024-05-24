@@ -433,30 +433,6 @@ void handle_req_err(const clientinfo* ci, int nerrno){
 	send_server_err(ci, errcode);
 }
 
-// void req_echo(http_req_t* client_hdr, const clientinfo* ci){
-
-// 	int status_num = HTTP_RESP_OK;
-// 	http_resp_t resp; 
-// 	init_http_resp(&resp);
-
-// 	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
-// 	resp.code = &_code; 
-// 	resp.body = client_hdr->req_path + 6;
-	
-// 	http_hdr_t content_type = {"Content-Type", "text/plain"};
-// 	add_httpresp_hdr(&resp, &content_type);
-
-// 	char _content_len[NUM_TO_STR_SIZE] = {0}; 
-// 	sprintf(_content_len, "%ld", strlen(resp.body));
-
-// 	http_hdr_t content_len = {"Content-Length", _content_len};
-// 	add_httpresp_hdr(&resp, &content_len);
-	
-
-// 	http_send_resp(&resp, ci);
-
-// }
-
 char* get_req_hdr_value(http_hdr_list* req_hdrs, const char* name){
 	char* resp_value = NULL; 
 
@@ -472,39 +448,6 @@ char* get_req_hdr_value(http_hdr_list* req_hdrs, const char* name){
 
 	return resp_value; 
 }
-
-// void req_client_field(const clientinfo* ci, http_hdr_list* req_hdrs, char* field_to_find){ 
-
-	
-// 	// check to see that hdr requested was included 
-// 	char* resp_value = get_req_hdr_value(req_hdrs, field_to_find); 
-
-// 	if (resp_value == NULL) {
-// 		printf("msg not found\n");
-// 		handle_req_err(ci, -3);
-// 		return; 
-// 	}
-	
-// 	int status_num = HTTP_RESP_OK;
-
-// 	http_resp_t resp;  
-// 	init_http_resp(&resp);
-
-// 	http_resp_code_t _code = { status_num, resp_code_type(status_num) }; 
-// 	resp.code = &_code;
-// 	resp.body = resp_value; 
-
-// 	http_hdr_t content_type = {"Content-Type", "text/plain"};
-// 	add_httpresp_hdr(&resp, &content_type);
-
-// 	char _content_len[NUM_TO_STR_SIZE] = {0}; 
-// 	sprintf(_content_len, "%ld", strlen(resp.body));
-
-// 	http_hdr_t content_len = {"Content-Length", _content_len};
-// 	add_httpresp_hdr(&resp, &content_len);
-
-// 	http_send_resp(&resp, ci); 
-// } 
 
 int send_file_chunks(const clientinfo* ci, FILE* f){
 
