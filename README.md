@@ -9,9 +9,10 @@ A collection of command line tools for linux written in C for personal use and t
   * get basic ip info from the kernel using interface addresses
 * ipinfov2
   * get more detailed ip info from the kernel using NETLINK sockets
-* minserver (*)
+* minserver
   * minimal HTTP 1.1 server for testing static websites 
   * currently supports only GET and POST
+  * supports IPv6
 * pnginspect
   * inspects the chunks of a png file
 * portscan (*)

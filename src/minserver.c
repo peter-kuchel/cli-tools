@@ -891,7 +891,7 @@ int main(int argc, char** argv) {
 	workerinfo* winfo = (workerinfo*)malloc(n_workers * sizeof(workerinfo));
 
 	int i; 
-	printf("Server running on: %s:%d\n", serv_in.host_addr, serv_in.port);
+	printf("Server running on: [%s]:%d\n", serv_in.host_addr, serv_in.port);
 	printf("Server logs being sent to: %s, check there for more details\n", MINSERV_LOG_FILE);
 	for (i = 0; i < n_workers; i++){
 
