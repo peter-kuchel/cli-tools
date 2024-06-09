@@ -16,7 +16,9 @@ A collection of command line tools for linux written in C for personal use and t
 * pnginspect
   * inspects the chunks of a png file
 * portscan (*)
-  * port scanner that supports vanilla and SYN scans 
+  * port scanner that supports the following scan types 
+      * Connect
+      * SYN (a work in progress atm) 
 * stegov1
   * hide text inside of a png by appending data after the IEND chunk 
 

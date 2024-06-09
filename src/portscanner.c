@@ -8,6 +8,7 @@
 
 #include <sys/socket.h>    
 #include <sys/types.h>                      // man connect suggests including this for portability 
+#include <sys/time.h>
 
 #include <netinet/in.h>                     
 #include <netinet/ip.h>                     // iphdr 
@@ -16,9 +17,8 @@
 
 #include <pthread.h> 
 
-#include "common.h"    
-#include "inetutils.h"
-// #include "netutils.h"                  
+#include "common.h"                         // strtol_parse
+#include "inetutils.h"                      // OPT_SIZE                
 
 // for testing for real (scanme.nmap.org): 45.33.32.156
 
@@ -34,6 +34,10 @@
 
 #define CON                 0                       // regular vanilla scan 
 #define SYN                 1                         
+
+
+#define STATUS_MSG_SIZE     64
+#define OPT_SIZE            4
 
 
 pthread_barrier_t thread_barrier;  
@@ -85,14 +89,6 @@ void usage(){
         "\tCON (vanilla)\n\tSYN (currently being debugged)\n"
         "\n\tif no type specified CON is default\n"
     );
-    // printf("USAGE:\n");
-    // printf("-host :: \n");
-    // printf("\thostname(s) to scan on\n");
-    // printf("-port :: \n");
-    // printf("\tport to scan\n\tif no port given, all will be scanned\n");
-    // printf("-help :: \n");
-    // printf("\");
-    // printf("\nIf not port is given then all ports will be scanned\n");
 }
 
 void force_fail(char* msg){
@@ -173,17 +169,6 @@ void handle_cli_args(int argc, char* argv[], user_args* uargs){
     
 }
 
-int new_socket_desc(sock_args* sargs){
-    int sd; 
-    if ( (sd = socket(sargs->_domain, sargs->_type, sargs->_protocol)) < 0){
-        perror("socket() unable to create socket descriptor");
-        printf("If operation not permitted, try running as superuser\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return sd; 
-}
-
 void config_scan_sock(user_args* uargs){
     
     switch(uargs->type){
@@ -206,18 +191,38 @@ int new_tcp_sock(user_args* uargs){
 
     int sd, status; 
 
-    sd = new_socket_desc(&uargs->sargs);
+    if ( (sd = socket(uargs->sargs._domain, uargs->sargs._type, uargs->sargs._protocol)) < 0){
+        perror("socket() unable to create socket descriptor");
+        printf("(If operation not permitted, try running as superuser)\n");
+        exit(EXIT_FAILURE);
+    }
+
+    struct timeval sock_time_out;
+    sock_time_out.tv_sec = 3;
+    sock_time_out.tv_usec = 0;
+
+    size_t timeval_s = sizeof(struct timeval);
+
+    if (setsockopt (sd, SOL_SOCKET, SO_RCVTIMEO, &sock_time_out, timeval_s) < 0){
+        perror("setsockopt() unable to set SO_RCVTIMEO option");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt (sd, SOL_SOCKET, SO_SNDTIMEO, &sock_time_out, timeval_s) < 0){
+        perror("setsockopt() unable to set SO_SNDTIMEO option");
+        exit(EXIT_FAILURE);
+    }
 
     switch(uargs->type){
         case SYN: 
             ;
             int ip_hdrincl_set = 1; 
             if ( (status = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &ip_hdrincl_set, sizeof(ip_hdrincl_set))) == -1) { 
-                close(sd);
-                printf("Error setting IP_HDRINCL. Error number : %d . Error message : %s \n" , errno , strerror(errno));
+                perror("setsockopt() unable to set IP_HDRINCL option");
                 exit(EXIT_FAILURE);
             }
             break; 
+
         case CON:
             break; 
     }
@@ -225,70 +230,52 @@ int new_tcp_sock(user_args* uargs){
     return sd;  
 }
 
-
-void get_source_addr(){
-
-}
-
-void set_tcpflags(struct tcphdr* tcph, uint8_t flags){
-    tcph->urg = (flags & 0x20);
-    tcph->ack = (flags & 0x10);
-    tcph->psh = (flags & 0x08);
-    tcph->rst = (flags & 0x04);
-    tcph->syn = (flags & 0x02);
-    tcph->fin = (flags & 0x01);
-}
-
-// void create_tcp_header(char* pckt){
+void set_tcp_hdr_flags(struct tcphdr* tcph, uint8_t flags){
+    if ( (flags & 0x20) > 0) tcph->urg = 1;
+    if ( (flags & 0x10) > 0) tcph->ack = 1;
+    if ( (flags & 0x08) > 0) tcph->psh = 1;
+    if ( (flags & 0x04) > 0) tcph->rst = 1;
+    if ( (flags & 0x02) > 0) tcph->syn = 1; 
+    if ( (flags & 0x01) > 0) tcph->fin = 1;
     
-// }
 
+    // printf("flags is: %husyn set? : %hu\n", flags, ((flags & 0x04) > 0));
+}
 
-void create_syn_packet(char* pckt, size_t pcktlen, user_args* uargs, pid_t tid){
+void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, struct sockaddr_in* src, uint8_t tcp_flags){
 
-    srand(time(NULL));
-
-    struct iphdr* iph; 
-    struct tcphdr* tcph; 
+    struct iphdr *iph; 
+    struct tcphdr *tcph; 
     pseudo_iphdr piph; 
-    
-    char tcp_opts[TCP_OPT_LEN];
-    memset(tcp_opts, 0, TCP_OPT_LEN);
 
-    in_addr_t src_addr; 
-
-    // if () 
-    inet_pton(AF_INET, "127.0.0.1", &src_addr);
-    in_addr_t dst_addr = inet_addr( uargs->host );
-
-    iph = (struct iphdr*)(pckt);
+    /* set fields in the ip header */
+    iph = (struct iphdr*)pckt;
     iph->version = 4;
-    iph->ihl = 5; 
-    iph->tot_len = pcktlen; 
+    iph->ihl = 5;  
+    iph->tot_len = htons( pcktlen );
     iph->id = htons( (uint16_t)( rand() % MAX_U16 ) );
     iph->ttl = 64;
     iph->protocol = IPPROTO_TCP;
-    iph->saddr = src_addr;
-    iph->daddr = dst_addr;
+    iph->saddr = src->sin_addr.s_addr;
+    iph->daddr = dst->sin_addr.s_addr;
+
     /* will calculate iphdr checksum after tcp checksum */
-
     tcph = (struct tcphdr*)(pckt + sizeof(struct iphdr));
-    memset(tcph, 0, sizeof(struct tcphdr));
 
-    // tcph->source = htons( PROC_PORT + tid );
-    tcph->source = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
-    tcph->dest = htons( uargs->port );
-    tcph->doff = 7;                        // data offset in 32 bit words (so 40 bytes = 10)
-    tcph->syn = 1; 
+    tcph->source = src->sin_port;
+    tcph->dest = dst->sin_port;
+    tcph->doff = 6;                                     // data offset in 32 bit words
+
+    set_tcp_hdr_flags(tcph, tcp_flags);
+
     tcph->seq = (uint32_t)htonl( (uint32_t)rand() );
-    tcph->window = htons( 2700 );           // window doesn't really matter 
+    tcph->window = htons( 1024 );                       // window doesn't really matter (this is what nmap uses)
 
     /* need to define psudeo iphdr first before doing tcp checksum */
-    size_t tcp_len = sizeof(struct tcphdr) + TCP_OPT_LEN;
-    // size_t tcp_len = sizeof(struct tcphdr);
+    size_t tcp_len = sizeof(struct tcphdr) + OPT_SIZE;
 
-    piph._src_addr = src_addr;  
-    piph._dst_addr = dst_addr;
+    piph._src_addr = src->sin_addr.s_addr;  
+    piph._dst_addr = dst->sin_addr.s_addr;
     piph.fixed_byte = 0; 
     piph.protocol = IPPROTO_TCP; 
     piph.tcp_seg_len = htons(tcp_len);
@@ -302,24 +289,18 @@ void create_syn_packet(char* pckt, size_t pcktlen, user_args* uargs, pid_t tid){
     memcpy(pseudo_pckt, &piph, piph_len); 
     memcpy(pseudo_pckt + piph_len, tcph, tcp_len); 
 
-    /* set opts for tcphdr for sending SYN */
-    // skipping options for now (since might not need them, only to negotiate mss and window size which we may not actually need)
+    char tcp_opts[OPT_SIZE];
+    memset(tcp_opts, 0, OPT_SIZE);
 
-    // mss opt 
+    // set mss opt 
     tcp_opts[0] = 2; 
     tcp_opts[1] = 4; 
-    uint16_t mss = htons(48);
+    uint16_t mss = htons(1460);
     memcpy(tcp_opts + 2, &mss, sizeof(uint16_t));
 
-    // SACK opt
-
-    tcp_opts[4] = 4;
-    tcp_opts[5] = 2;
-
     /* calc checksum */
-
-    memcpy(pseudo_pckt + (sizeof(pseudo_iphdr) + sizeof(struct tcphdr)), tcp_opts, TCP_OPT_LEN);
-    memcpy(pckt + (sizeof(struct iphdr) + sizeof(struct tcphdr) ),tcp_opts ,TCP_OPT_LEN);
+    memcpy(pseudo_pckt + (sizeof(pseudo_iphdr) + sizeof(struct tcphdr)), tcp_opts, OPT_SIZE);
+    memcpy(pckt + ( sizeof(struct iphdr) + sizeof(struct tcphdr) ), tcp_opts ,OPT_SIZE);
 
     tcph->check = checksum((const char*)pseudo_pckt, pseudo_len);
     iph->check = checksum((const char*)pckt, pcktlen);
@@ -347,79 +328,132 @@ void see_pckt_info(char* pckt){
     printf("seq: %d\n", (uint32_t)ntohl(tcph->seq));
 }
 
-int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, uint16_t port, struct sockaddr_in* haddr){
+int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_in* recv_addr){
 
-    uint16_t dst_port; 
-    int status; 
+    // there is no guarentee that we will receive the resp we want on the first call
+    uint16_t dst_port = 0; 
+    uint16_t src_port = ntohs(recv_addr->sin_port); 
     socklen_t sa_sz = (socklen_t)sizeof(struct sockaddr); 
-    
-    do {
-        
-        status = recvfrom(sd, resphdr, pckthdr_len, 0, (struct sockaddr*)haddr, &sa_sz);
-        struct tcphdr* tcph = (struct tcphdr*)(resphdr + sizeof(struct iphdr));
-        dst_port = ntohs(tcph->dest);
 
-        printf("bytes: %d | %u ? %u\n",status, port, dst_port);
+    struct tcphdr* tcph;
+    int bytes_recvd; 
+
+    while (dst_port != src_port){
+
+        printf("%u\n", dst_port);
+        bytes_recvd = recvfrom(sd, resphdr, pckthdr_len, 0, (struct sockaddr*)recv_addr, &sa_sz);
+
+        if (bytes_recvd < 0) break; 
+        tcph = (struct tcphdr*)(resphdr + sizeof(struct iphdr));
+        dst_port = ntohs(tcph->dest);
         sleep(1);
 
-    } while (dst_port != port);
+    }
 
-    return status;
+    return bytes_recvd;
 }
 
 void single_syn_scan(user_args* uargs){
     
     int sd = new_tcp_sock(uargs); 
 
-    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + TCP_OPT_LEN; 
-    // size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr);                  // 40 bytes total 
+    int tid = 1;
+    uint8_t tcp_flags = 0;
+
+    struct sockaddr_in dst_addr, src_addr;
+
+    dst_addr.sin_family = AF_INET; 
+    dst_addr.sin_port = htons( uargs->port );
+    dst_addr.sin_addr.s_addr = inet_addr( uargs->host );
+
+    srand(time(NULL));
+    src_addr.sin_family = AF_INET; 
+    src_addr.sin_port = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
+    src_addr.sin_addr.s_addr = inet_addr( "127.0.0.1" );                                // hardcode for now, find interface address later 
+
+    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
     char pckthdr[pckthdr_len];
 
+    // printf("Got port: %u\n", src_addr.sin_port);
+    // printf("Size of pkt hdr: %ld\n", pckthdr_len);
+
     memset(pckthdr, 0, pckthdr_len); 
-    create_syn_packet(pckthdr, pckthdr_len, uargs, 1);
 
-    // send over socket 
-
-    struct sockaddr_in host_addr;
-    host_addr.sin_family = AF_INET; 
-    host_addr.sin_port = htons( uargs->port );
-    host_addr.sin_addr.s_addr = inet_addr( uargs->host );
+    tcp_flags |= 0x02;
+    build_pkt_to_send(pckthdr, pckthdr_len, &dst_addr, &src_addr, tcp_flags);
 
     see_pckt_info(pckthdr);
 
-    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)&host_addr, sizeof(struct sockaddr));
-
+    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)&dst_addr, sizeof(struct sockaddr));
+    printf("probe sent\n");
     if (status == -1){
         perror("failed to sendto() host");
         exit(EXIT_FAILURE);
     }
 
-    printf("bytes sent: %ld\n", status);
+    // printf("\nbytes sent: %ld\n", status);
     if ((size_t)status != pckthdr_len){
         perror("not all bytes sent over socket");
         exit(EXIT_FAILURE);
     }
 
     // recieve resp 
+    char resphdr[4096];
+    status = recvfrom_wrapper(sd, resphdr, pckthdr_len, &dst_addr);
 
-    char resphdr[pckthdr_len];
-    
-    // socklen_t sa_sz = 32; 
+    printf("Port %lu is: ", uargs->port);
+    char port_status[STATUS_MSG_SIZE];
 
+    if (status < 0){
+        // printf("filtered | (no response received)\n");
+        strcat(port_status, "filtered | (no response received)\n");
 
-    // printf("%u\n", port, dst_port);
+    } else {
+        // printf("recv bytes received: %ld\n", status);
 
-    printf("before recvfrom\n");
-    // status = recvfrom_wrapper(sd, resphdr, pckthdr_len, uargs->port, &host_addr);
-    socklen_t sa_sz = (socklen_t)sizeof(struct sockaddr); 
-    status = recvfrom(sd, resphdr, pckthdr_len, 0, (struct sockaddr*)&host_addr, &sa_sz);
-    printf("after recvfrom\n");
-    
-    printf("recv status: %ld\n", status);
+        see_pckt_info(resphdr);
 
-    see_pckt_info(resphdr);
+        // extract info from the packet 
+        struct tcphdr *tcph_resp = (struct tcphdr*)resphdr;
+        if (tcph_resp->rst == 1){
+            
+            strcat(port_status, "closed\n");
+        } else {
 
+            // possible that it might be an ICMP error, but that will need to be implemented later
+            
+            /* 
+                Might not have to send the RST ourselves, Linux should respond to the 
+                unexpected SYN/ACK with a RST packet since it was not expecting the response 
+                from the host we are scanning (according to NMAP docs). Testing with nmap, it seems that 
+                it doesn't send a RST packet either using tcpdump to capture the packets 
+                
+            */
+            // tcp_flags = 0;
+            // memset(pckthdr, 0, pckthdr_len);
 
+            // tcp_flags |= 0x04;
+            // build_pkt_to_send(pckthdr, pckthdr_len, &dst_addr, &src_addr, tcp_flags);
+
+            // status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)&dst_addr, sizeof(struct sockaddr));
+            
+            // if (status == -1){
+            //     perror("failed to sendto() host");
+            //     printf("Errno is: %d\n", errno);
+            //     exit(EXIT_FAILURE);
+            // }
+
+            // if ((size_t)status < pckthdr_len){
+            //     perror("not all bytes sent over socket");
+            //     exit(EXIT_FAILURE);
+            // }
+
+            strcat(port_status, "open\n");
+        }
+        
+    }
+
+    printf("%s", port_status);
     close(sd);
 }
 
