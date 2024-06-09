@@ -1,7 +1,7 @@
 #!/bin/sh
 
 LOCAL_HOST=45.33.32.156
-
+# LOCAL_HOST=127.0.0.1
 make mk-bin-dir port-scanner
 
 # printf "full vanilla scan on localhost\n"
@@ -14,6 +14,11 @@ printf "Testing SYN scan options\n"
 # ##########################################################################################
 # nmap -sS 127.0.0.1 -Pn -p 11309
 # tcpdump -vv -t -x -s 4096 -i lo -Qinout 'port 5432'
+
+# todo 
+# get the interface and address of the machine 
+# need to check that the resp is from the correct src after the probe
+# fix the issues with sending outside of localhost -- should be fixed with getting the correct interface address 
 
 
 # example packet breakdown from tcpdump

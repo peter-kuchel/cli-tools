@@ -10,6 +10,8 @@
 #include <sys/types.h>                      // man connect suggests including this for portability 
 #include <sys/time.h>
 
+#include <ifaddrs.h> 
+#include <net/if.h>
 #include <netinet/in.h>                     
 #include <netinet/ip.h>                     // iphdr 
 #include <netinet/tcp.h>                    // tcphdr 
@@ -32,12 +34,22 @@
 
 #define PROC_PORT           60000
 
-#define CON                 0                       // regular vanilla scan 
-#define SYN                 1                         
+#define CON                 0x00                       // regular vanilla scan 
+#define FIN                 0x01
+#define SYN                 0x02
+#define RST                 0x04
+#define PSH                 0x08                          
+#define ACK                 0x10       
+#define URG                 0x20          
+#define XMAS                ( FIN | PSH | URG)
 
 
 #define STATUS_MSG_SIZE     64
 #define OPT_SIZE            4
+
+
+#define CAST_TCP_HDR(ptr) \
+    ( (struct tcphdr*)(ptr + sizeof(struct iphdr)) )
 
 
 pthread_barrier_t thread_barrier;  
@@ -187,6 +199,48 @@ void config_scan_sock(user_args* uargs){
     }
 }
 
+void find_public_inet_addr(struct sockaddr_in* src, in_addr_t dst_addr){
+
+    // check if the dest is localhost, if so then make source localhost too 
+    if (dst_addr == 0x0100007f ){
+        src->sin_family = AF_INET; 
+        src->sin_addr.s_addr = dst_addr; 
+        return; 
+    }
+    struct ifaddrs *curr_ifa, *init_ifa;
+    struct sockaddr_in* inet_info = NULL;
+
+    if (getifaddrs(&init_ifa) == -1){
+        perror("getifaddrs() unable to get interfaces");
+        exit(EXIT_FAILURE);
+    }    
+
+    curr_ifa = init_ifa; 
+
+    while (curr_ifa != NULL){
+
+        if (
+            ( curr_ifa->ifa_addr != NULL ) &&                           // check that ifa is not null
+            ( strncmp(curr_ifa->ifa_name, "lo", 2) != 0 ) &&            // check it isn't local 
+            (curr_ifa->ifa_addr->sa_family == AF_INET)                  // check its ipv4 
+        ){
+            inet_info = (struct sockaddr_in*)(curr_ifa->ifa_addr);
+            break; 
+        }
+        curr_ifa = curr_ifa->ifa_next;
+    }
+
+    // couldn't find a non-local interface address 
+    if (inet_info == NULL){
+        perror("find_public_inet_addr() couldn't find a public inet4 address to use");
+        exit(EXIT_FAILURE);
+    } else {
+        src->sin_family = AF_INET; 
+        src->sin_addr.s_addr = inet_info->sin_addr.s_addr;
+    }
+
+}
+
 int new_tcp_sock(user_args* uargs){
 
     int sd, status; 
@@ -203,27 +257,28 @@ int new_tcp_sock(user_args* uargs){
 
     size_t timeval_s = sizeof(struct timeval);
 
-    if (setsockopt (sd, SOL_SOCKET, SO_RCVTIMEO, &sock_time_out, timeval_s) < 0){
-        perror("setsockopt() unable to set SO_RCVTIMEO option");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt (sd, SOL_SOCKET, SO_SNDTIMEO, &sock_time_out, timeval_s) < 0){
-        perror("setsockopt() unable to set SO_SNDTIMEO option");
-        exit(EXIT_FAILURE);
-    }
 
     switch(uargs->type){
-        case SYN: 
+        
+        case CON:
+            break; 
+        
+        default: 
             ;
+            if (setsockopt (sd, SOL_SOCKET, SO_RCVTIMEO, &sock_time_out, timeval_s) < 0){
+                perror("setsockopt() unable to set SO_RCVTIMEO option");
+                exit(EXIT_FAILURE);
+            }
+
+            if (setsockopt (sd, SOL_SOCKET, SO_SNDTIMEO, &sock_time_out, timeval_s) < 0){
+                perror("setsockopt() unable to set SO_SNDTIMEO option");
+                exit(EXIT_FAILURE);
+            }
             int ip_hdrincl_set = 1; 
             if ( (status = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &ip_hdrincl_set, sizeof(ip_hdrincl_set))) == -1) { 
                 perror("setsockopt() unable to set IP_HDRINCL option");
                 exit(EXIT_FAILURE);
             }
-            break; 
-
-        case CON:
             break; 
     }
     
@@ -231,15 +286,13 @@ int new_tcp_sock(user_args* uargs){
 }
 
 void set_tcp_hdr_flags(struct tcphdr* tcph, uint8_t flags){
-    if ( (flags & 0x20) > 0) tcph->urg = 1;
-    if ( (flags & 0x10) > 0) tcph->ack = 1;
-    if ( (flags & 0x08) > 0) tcph->psh = 1;
-    if ( (flags & 0x04) > 0) tcph->rst = 1;
-    if ( (flags & 0x02) > 0) tcph->syn = 1; 
-    if ( (flags & 0x01) > 0) tcph->fin = 1;
+    if ( (flags & URG) > 0) tcph->urg = 1;
+    if ( (flags & ACK) > 0) tcph->ack = 1;
+    if ( (flags & PSH) > 0) tcph->psh = 1;
+    if ( (flags & RST) > 0) tcph->rst = 1;
+    if ( (flags & SYN) > 0) tcph->syn = 1; 
+    if ( (flags & FIN) > 0) tcph->fin = 1;
     
-
-    // printf("flags is: %husyn set? : %hu\n", flags, ((flags & 0x04) > 0));
 }
 
 void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, struct sockaddr_in* src, uint8_t tcp_flags){
@@ -260,7 +313,7 @@ void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, stru
     iph->daddr = dst->sin_addr.s_addr;
 
     /* will calculate iphdr checksum after tcp checksum */
-    tcph = (struct tcphdr*)(pckt + sizeof(struct iphdr));
+    tcph = CAST_TCP_HDR(pckt);
 
     tcph->source = src->sin_port;
     tcph->dest = dst->sin_port;
@@ -298,10 +351,11 @@ void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, stru
     uint16_t mss = htons(1460);
     memcpy(tcp_opts + 2, &mss, sizeof(uint16_t));
 
-    /* calc checksum */
+    
     memcpy(pseudo_pckt + (sizeof(pseudo_iphdr) + sizeof(struct tcphdr)), tcp_opts, OPT_SIZE);
     memcpy(pckt + ( sizeof(struct iphdr) + sizeof(struct tcphdr) ), tcp_opts ,OPT_SIZE);
 
+    /* calc checksum */
     tcph->check = checksum((const char*)pseudo_pckt, pseudo_len);
     iph->check = checksum((const char*)pckt, pcktlen);
 
@@ -309,7 +363,7 @@ void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, stru
 
 void see_pckt_info(char* pckt){
     struct iphdr* iph = (struct iphdr*)pckt;
-    struct tcphdr* tcph = (struct tcphdr*)(pckt + sizeof(struct iphdr));
+    struct tcphdr* tcph = CAST_TCP_HDR(pckt);
     printf("SYN: %x, ACK: %x, RST: %x, FIN: %x\n", tcph->syn, tcph->ack, tcph->rst, tcph->fin);
 
     char sa[INET_ADDRSTRLEN], da[INET_ADDRSTRLEN];
@@ -328,63 +382,66 @@ void see_pckt_info(char* pckt){
     printf("seq: %d\n", (uint32_t)ntohl(tcph->seq));
 }
 
-int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_in* recv_addr){
+int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_in* dst, struct sockaddr_in* src){
 
     // there is no guarentee that we will receive the resp we want on the first call
-    uint16_t dst_port = 0; 
-    uint16_t src_port = ntohs(recv_addr->sin_port); 
-    socklen_t sa_sz = (socklen_t)sizeof(struct sockaddr); 
+     
+    socklen_t sockaddr_size = (socklen_t)sizeof(struct sockaddr); 
 
-    struct tcphdr* tcph;
+    in_port_t org_dst_port = dst->sin_port; 
+    in_addr_t org_dst_addr = dst->sin_addr.s_addr;
+
+    in_port_t org_src_port = src->sin_port; 
+    in_addr_t org_src_addr = src->sin_addr.s_addr;
+
+    in_port_t incoming_src_port = 0, incoming_dst_port = 0;
+    in_addr_t incoming_src_addr = 0, incoming_dst_addr = 0; 
+
+    struct iphdr *iph;
+    struct tcphdr *tcph;
     int bytes_recvd; 
 
-    while (dst_port != src_port){
+    printf("[ORGN PORTS] dst: %u, src: %u\n",org_dst_port, org_src_port);
+    printf("-{ORGN ADDRS}- dst: %u, src: %u\n\n",org_dst_addr, org_src_addr);
 
-        printf("%u\n", dst_port);
-        bytes_recvd = recvfrom(sd, resphdr, pckthdr_len, 0, (struct sockaddr*)recv_addr, &sa_sz);
+    while ( 1 ){
+
+        bytes_recvd = recvfrom(sd, resphdr, pckthdr_len, 0, (struct sockaddr*)dst, &sockaddr_size);
 
         if (bytes_recvd < 0) break; 
-        tcph = (struct tcphdr*)(resphdr + sizeof(struct iphdr));
-        dst_port = ntohs(tcph->dest);
+
+        tcph = CAST_TCP_HDR(resphdr);
+        incoming_src_port = tcph->source; 
+        incoming_dst_port = tcph->dest;
+
+        printf("[RECV PORTS] dst: %u, src: %u\n",incoming_dst_port, incoming_src_port);
         sleep(1);
 
+        if (incoming_src_port == org_dst_port && incoming_dst_port == org_src_port){
+            // printf("ports matched\n");
+            iph = (struct iphdr*)resphdr;
+            incoming_src_addr = iph->saddr;
+            incoming_dst_addr = iph->daddr;
+
+            printf("-{RECV ADDRS}- dst: %u, src: %u\n\n",incoming_dst_addr, incoming_src_addr);
+
+            if (incoming_dst_addr == org_src_addr && incoming_src_addr == org_dst_addr) 
+                break; 
+        }
     }
 
     return bytes_recvd;
 }
 
-void single_syn_scan(user_args* uargs){
-    
-    int sd = new_tcp_sock(uargs); 
 
-    int tid = 1;
-    uint8_t tcp_flags = 0;
-
-    struct sockaddr_in dst_addr, src_addr;
-
-    dst_addr.sin_family = AF_INET; 
-    dst_addr.sin_port = htons( uargs->port );
-    dst_addr.sin_addr.s_addr = inet_addr( uargs->host );
-
-    srand(time(NULL));
-    src_addr.sin_family = AF_INET; 
-    src_addr.sin_port = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
-    src_addr.sin_addr.s_addr = inet_addr( "127.0.0.1" );                                // hardcode for now, find interface address later 
-
+void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd, uint8_t flags){
     size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
     char pckthdr[pckthdr_len];
 
-    // printf("Got port: %u\n", src_addr.sin_port);
-    // printf("Size of pkt hdr: %ld\n", pckthdr_len);
-
     memset(pckthdr, 0, pckthdr_len); 
+    build_pkt_to_send(pckthdr, pckthdr_len, dst_addr, src_addr, flags);
 
-    tcp_flags |= 0x02;
-    build_pkt_to_send(pckthdr, pckthdr_len, &dst_addr, &src_addr, tcp_flags);
-
-    see_pckt_info(pckthdr);
-
-    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)&dst_addr, sizeof(struct sockaddr));
+    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)dst_addr, sizeof(struct sockaddr));
     printf("probe sent\n");
     if (status == -1){
         perror("failed to sendto() host");
@@ -399,9 +456,57 @@ void single_syn_scan(user_args* uargs){
 
     // recieve resp 
     char resphdr[4096];
-    status = recvfrom_wrapper(sd, resphdr, pckthdr_len, &dst_addr);
+    status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
+}
+void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd){
+    
+    // int sd = new_tcp_sock(uargs); 
 
-    printf("Port %lu is: ", uargs->port);
+    // int tid = 1;
+    uint8_t tcp_flags = 0;
+
+    // struct sockaddr_in dst_addr, src_addr;
+
+    // dst_addr.sin_family = AF_INET; 
+    // dst_addr.sin_port = htons( uargs->port );
+    // dst_addr.sin_addr.s_addr = inet_addr( uargs->host );
+
+    // srand(time(NULL));
+    // src_addr.sin_family = AF_INET; 
+    // src_addr.sin_port = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
+    // src_addr.sin_addr.s_addr = inet_addr( "127.0.0.1" );                                // hardcode for now, find interface address later 
+
+    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
+    char pckthdr[pckthdr_len];
+
+    // printf("Got port: %u\n", src_addr.sin_port);
+    // printf("Size of pkt hdr: %ld\n", pckthdr_len);
+
+    memset(pckthdr, 0, pckthdr_len); 
+
+    tcp_flags |= 0x02;
+    build_pkt_to_send(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
+
+    see_pckt_info(pckthdr);
+
+    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)dst_addr, sizeof(struct sockaddr));
+    printf("probe sent\n");
+    if (status == -1){
+        perror("failed to sendto() host");
+        exit(EXIT_FAILURE);
+    }
+
+    // printf("\nbytes sent: %ld\n", status);
+    if ((size_t)status != pckthdr_len){
+        perror("not all bytes sent over socket");
+        exit(EXIT_FAILURE);
+    }
+
+    // recieve resp 
+    char resphdr[4096];
+    status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
+
+    // printf("Port %lu is: ", uargs->port);
     char port_status[STATUS_MSG_SIZE];
 
     if (status < 0){
@@ -414,7 +519,7 @@ void single_syn_scan(user_args* uargs){
         see_pckt_info(resphdr);
 
         // extract info from the packet 
-        struct tcphdr *tcph_resp = (struct tcphdr*)resphdr;
+        struct tcphdr *tcph_resp = CAST_TCP_HDR(resphdr);
         if (tcph_resp->rst == 1){
             
             strcat(port_status, "closed\n");
@@ -563,15 +668,47 @@ void multi_scan(user_args* uargs){
 
 }
 
+void raw_packet_setup(user_args* uargs){
+    int sd = new_tcp_sock(uargs);
+    int tid = 1;
+
+    struct sockaddr_in dst_addr, src_addr;
+
+    dst_addr.sin_family = AF_INET; 
+    dst_addr.sin_port = htons( uargs->port );
+    dst_addr.sin_addr.s_addr = inet_addr( uargs->host );
+
+    srand(time(NULL));
+
+    find_public_inet_addr(&src_addr, dst_addr.sin_addr.s_addr);
+    src_addr.sin_port = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
+
+    uint8_t tcp_flags = 0;
+
+    char _type = uargs->type; 
+    switch (_type){
+        case SYN: 
+            syn_scan(&dst_addr, &src_addr, sd);
+            break; 
+        case ACK:
+            break;  
+        default: 
+            if      (_type == FIN) tcp_flags = FIN; 
+            else if (_type == XMAS) tcp_flags = XMAS;  
+
+            single_way_scan(&dst_addr, &src_addr, sd, tcp_flags);         
+            break; 
+    }
+}
+
 void single_type_opts(user_args* uargs){
     switch(uargs->type){
-        case SYN: 
-            single_syn_scan(uargs);
-            break;
-
         case CON: 
             single_con_scan(uargs);
-            break;
+            break; 
+        default: 
+            raw_packet_setup(uargs);
+            break; 
     }
 }
 
