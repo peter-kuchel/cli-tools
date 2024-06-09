@@ -31,7 +31,8 @@
 #define RST                 0x04
 #define PSH                 0x08                          
 #define ACK                 0x10       
-#define URG                 0x20          
+#define URG                 0x20 
+#define NIL                 0x68                       // NULL scan          
 #define XMAS                ( FIN | PSH | URG )
 
 #define MAX_THREADS         16
@@ -50,9 +51,20 @@
 #define OPT_SIZE            4                       // tcp opt size (only setting mss opt)
 #define STATUS_MSG_SIZE     64
 
+
+#define IPH_TTL_DEFAULT  64
+// same as what nmap has
+#define DEFAULT_WIN_SIZE 1024
+#define DEFAULT_MSS_SIZE 1460           
+
+
+#define RESP_SIZE        256
+
 #define CAST_TCP_HDR(ptr) \
     ( (struct tcphdr*)(ptr + sizeof(struct iphdr)) )
 
+#define TOTAL_PKT_SIZE() \
+    (sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE)
 
 #define PROC_PORT           60000                   // start multi-threading at this port for source 
 

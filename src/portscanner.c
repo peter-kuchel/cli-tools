@@ -46,6 +46,14 @@ void handle_cli_args(int argc, char* argv[], user_args* uargs){
 
             if (strncmp(token, "SYN", type_len) == 0){
                 uargs->type = SYN;
+            } else if (strncmp(token, "FIN", type_len) == 0){
+                uargs->type = FIN; 
+            } else if (strncmp(token, "NULL", type_len + 1) == 0){
+                uargs->type = NIL; 
+            }  else if (strncmp(token, "XMAS", type_len + 1) == 0){
+                uargs->type = XMAS; 
+            } else if (strncmp(token, "ACK", type_len) == 0){
+                uargs->type = XMAS; 
             } else {
                 printf("TYPE not recognized, see usage with -help\n");
                 exit(EXIT_FAILURE);
@@ -182,10 +190,9 @@ void set_tcp_hdr_flags(struct tcphdr* tcph, uint8_t flags){
     if ( (flags & RST) > 0) tcph->rst = 1;
     if ( (flags & SYN) > 0) tcph->syn = 1; 
     if ( (flags & FIN) > 0) tcph->fin = 1;
-    
 }
 
-void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, struct sockaddr_in* src, uint8_t tcp_flags){
+void build_packet(char* pckt, size_t pcktlen, struct sockaddr_in* dst, struct sockaddr_in* src, uint8_t tcp_flags){
 
     struct iphdr *iph; 
     struct tcphdr *tcph; 
@@ -197,7 +204,7 @@ void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, stru
     iph->ihl = 5;  
     iph->tot_len = htons( pcktlen );
     iph->id = htons( (uint16_t)( rand() % MAX_U16 ) );
-    iph->ttl = 64;
+    iph->ttl = IPH_TTL_DEFAULT;
     iph->protocol = IPPROTO_TCP;
     iph->saddr = src->sin_addr.s_addr;
     iph->daddr = dst->sin_addr.s_addr;
@@ -212,7 +219,7 @@ void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, stru
     set_tcp_hdr_flags(tcph, tcp_flags);
 
     tcph->seq = (uint32_t)htonl( (uint32_t)rand() );
-    tcph->window = htons( 1024 );                       // window doesn't really matter (this is what nmap uses)
+    tcph->window = htons( DEFAULT_WIN_SIZE );          // window doesn't really matter
 
     /* need to define psudeo iphdr first before doing tcp checksum */
     size_t tcp_len = sizeof(struct tcphdr) + OPT_SIZE;
@@ -223,7 +230,6 @@ void build_pkt_to_send(char* pckt, size_t pcktlen, struct sockaddr_in* dst, stru
     piph.protocol = IPPROTO_TCP; 
     piph.tcp_seg_len = htons(tcp_len);
     
-
     /* create pseudo hdr for checksum */
     size_t piph_len = sizeof(pseudo_iphdr);
     size_t pseudo_len = piph_len + tcp_len;
@@ -269,10 +275,10 @@ void see_pckt_info(char* pckt){
 
     printf("src: %s\ndst: %s\n", sa, da); 
     printf("src_p: %u\ndst_p: %u\n", src_port, dst_port);
-    printf("seq: %d\n", (uint32_t)ntohl(tcph->seq));
+    printf("seq: %u\n", (uint32_t)ntohl(tcph->seq));
 }
 
-int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_in* dst, struct sockaddr_in* src){
+ssize_t recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_in* dst, struct sockaddr_in* src){
 
     // there is no guarentee that we will receive the resp we want on the first call
      
@@ -289,7 +295,7 @@ int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_
 
     struct iphdr *iph;
     struct tcphdr *tcph;
-    int bytes_recvd; 
+    ssize_t bytes_recvd; 
 
     printf("[ORGN PORTS] dst: %u, src: %u\n",org_dst_port, org_src_port);
     printf("-{ORGN ADDRS}- dst: %u, src: %u\n\n",org_dst_addr, org_src_addr);
@@ -304,8 +310,8 @@ int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_
         incoming_src_port = tcph->source; 
         incoming_dst_port = tcph->dest;
 
-        printf("[RECV PORTS] dst: %u, src: %u\n",incoming_dst_port, incoming_src_port);
-        sleep(1);
+        // printf("[RECV PORTS] dst: %u, src: %u\n",incoming_dst_port, incoming_src_port);
+        // sleep(1);
 
         if (incoming_src_port == org_dst_port && incoming_dst_port == org_src_port){
             // printf("ports matched\n");
@@ -323,13 +329,37 @@ int recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct sockaddr_
     return bytes_recvd;
 }
 
+ssize_t sendto_wrapper(int sd, char* packet, size_t pkt_len, struct sockaddr_in* dst){
+
+    ssize_t status = sendto(sd, packet, pkt_len, 0, (struct sockaddr*)dst, sizeof(struct sockaddr));
+
+    printf("probe sent\n");
+    if (status == -1){
+        perror("failed to sendto() host");
+        exit(EXIT_FAILURE);
+    }
+
+    // printf("\nbytes sent: %ld\n", status);
+    if ((size_t)status != pkt_len){
+        perror("not all bytes sent over socket");
+        exit(EXIT_FAILURE);
+    }
+
+    return status; 
+}
+
+void send_probe(struct sockaddr_in* dst, struct sockaddr_in* src, int sd, uint8_t flags, char* pkt_buffer){
+
+    size_t pkt_len = TOTAL_PKT_SIZE();
+    memset(pkt_buffer, 0, pkt_len);
+}
 
 void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd, uint8_t flags){
     size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
     char pckthdr[pckthdr_len];
 
     memset(pckthdr, 0, pckthdr_len); 
-    build_pkt_to_send(pckthdr, pckthdr_len, dst_addr, src_addr, flags);
+    build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, flags);
 
     see_pckt_info(pckthdr);
 
@@ -361,8 +391,8 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
 
     memset(pckthdr, 0, pckthdr_len); 
 
-    tcp_flags |= 0x02;
-    build_pkt_to_send(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
+    tcp_flags |= SYN;
+    build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
 
     see_pckt_info(pckthdr);
 
@@ -380,14 +410,29 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
     }
 
     // recieve resp 
-    char resphdr[4096];
-    status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
+    char resphdr[pckthdr_len];
 
     char port_status[STATUS_MSG_SIZE];
+    memset(port_status, 0, STATUS_MSG_SIZE);
 
+    int attempts = 0;
+    do {
+        // printf("attempt: %d\n", attempts);
+        status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
+        printf("got: %ld on attempt: %d\n", status, attempts);
+        attempts++;
+
+        if (attempts == 2) break;
+
+    } while (status < 0);
+    
     if (status < 0){
-        strcat(port_status, "filtered | (no response received)\n");
-
+        if (errno == EAGAIN){
+            strcat(port_status, "filtered | (no response received)\n");
+        } else {
+            printf("Something went wrong... %s (Errno is: %d)\n", strerror(errno), errno);
+        }
+        
     } else {
         see_pckt_info(resphdr);
 
@@ -411,7 +456,7 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
             // memset(pckthdr, 0, pckthdr_len);
 
             // tcp_flags |= 0x04;
-            // build_pkt_to_send(pckthdr, pckthdr_len, &dst_addr, &src_addr, tcp_flags);
+            // build_packet(pckthdr, pckthdr_len, &dst_addr, &src_addr, tcp_flags);
 
             // status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)&dst_addr, sizeof(struct sockaddr));
             
@@ -431,8 +476,41 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
         
     }
 
-    printf("%s", port_status);
+    printf("Port is: %s", port_status);
     close(sd);
+}
+
+void ack_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd){
+    uint8_t tcp_flags = ACK; 
+
+    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
+    char pckthdr[pckthdr_len];
+
+    memset(pckthdr, 0, pckthdr_len); 
+
+    tcp_flags |= SYN;
+    build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
+
+    see_pckt_info(pckthdr);
+
+    ssize_t status = sendto_wrapper(sd, pckthdr, pckthdr_len, dst_addr);
+
+    char resphdr[pckthdr_len];
+
+    char port_status[STATUS_MSG_SIZE];
+    memset(port_status, 0, STATUS_MSG_SIZE);
+
+    int attempts = 0;
+    do {
+        printf("attempt: %d\n", attempts);
+        status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
+        attempts++;
+
+        if (attempts == 2 && status < 0) break;
+
+    } while (status > 0);
+
+    see_pckt_info(resphdr);
 }
 
 void single_con_scan(user_args* uargs){
@@ -563,10 +641,11 @@ void raw_packet_setup(user_args* uargs){
         case SYN: 
             syn_scan(&dst_addr, &src_addr, sd);
             break; 
-            
+
         case ACK:
             break;
 
+        // handle FIN, NULL, and XMAS
         default: 
             if      (_type == FIN) tcp_flags = FIN; 
             else if (_type == XMAS) tcp_flags = XMAS;  
