@@ -1,116 +1,6 @@
-#include <stdio.h> 
-#include <stdlib.h>
-#include <time.h>
-#include <unistd.h>
-#include <limits.h>
-#include <errno.h>
-#include <string.h>
+                
+#include "portscanner.h" 
 
-#include <sys/socket.h>    
-#include <sys/types.h>                      // man connect suggests including this for portability 
-#include <sys/time.h>
-
-#include <ifaddrs.h> 
-#include <net/if.h>
-#include <netinet/in.h>                     
-#include <netinet/ip.h>                     // iphdr 
-#include <netinet/tcp.h>                    // tcphdr 
-#include <arpa/inet.h>                      // inet_addr
-
-#include <pthread.h> 
-
-#include "common.h"                         // strtol_parse
-#include "inetutils.h"                      // OPT_SIZE                
-
-// for testing for real (scanme.nmap.org): 45.33.32.156
-
-#define MAX_THREADS         16
-#define MIN_PORT            1                       // port 0 is reserved 
-#define MAX_PORT            (1 << 16) - 1           // 65535            
-#define T_CALC(s,e)         ((e-s) / (1 << 10))     // calc whether can give each thread 1024 ports 
-#define NUM_THREADS(s, e)   ( (T_CALC(s,e) < MAX_THREADS) ? (T_CALC(s,e) + 1) : MAX_THREADS)
-
-#define MAX_U16             MAX_PORT                // const for max uint16
-
-#define PROC_PORT           60000
-
-#define CON                 0x00                       // regular vanilla scan 
-#define FIN                 0x01
-#define SYN                 0x02
-#define RST                 0x04
-#define PSH                 0x08                          
-#define ACK                 0x10       
-#define URG                 0x20          
-#define XMAS                ( FIN | PSH | URG)
-
-
-#define STATUS_MSG_SIZE     64
-#define OPT_SIZE            4
-
-
-#define CAST_TCP_HDR(ptr) \
-    ( (struct tcphdr*)(ptr + sizeof(struct iphdr)) )
-
-
-pthread_barrier_t thread_barrier;  
-
-typedef struct {
-    int _domain; 
-    int _type; 
-    int _protocol;
-} sock_args;
-
-typedef struct {     
-    long port; 
-    char* host;
-    char type; 
-    int prange; 
-    sock_args sargs;
-    sa_family_t af_fam; 
-} user_args; 
-
-
-typedef struct {
-    int tid;
-    int port_start; 
-    int port_end;
-    user_args* rdonly_uargs; 
-} t_data; 
-
-
-typedef struct {
-
-    uint32_t _src_addr; 
-    uint32_t _dst_addr; 
-    uint8_t fixed_byte; 
-    uint8_t protocol;
-    uint16_t tcp_seg_len; 
-    
-
-} pseudo_iphdr; 
-
-
-void usage(){
-    printf(
-        "Usage: portscan -host=<target> [options]\n"
-        "\n-host=<target> : target ipv4 address\n"
-        "\tif no other options specified then vanilla scan on all ports performed\n\tfor 127.0.0.1 use localhost\n"
-        "\n-port=<n> : port to scan\n"
-        "\n-prng=<start>:<end> : port range to scan\n"
-        "\n-type=<t> : scan type, currently supported are\n"
-        "\tCON (vanilla)\n\tSYN (currently being debugged)\n"
-        "\n\tif no type specified CON is default\n"
-    );
-}
-
-void force_fail(char* msg){
-    printf("%s", msg);
-    printf("see usage with:\n");
-    printf("'./portscan -help'\n");
-    exit(EXIT_FAILURE);
-}
-
-// -host=localhost -port=5000 -prng=22:1000 
 void handle_cli_args(int argc, char* argv[], user_args* uargs){
     int arg_flag_sz = 5; 
     char* token; 
@@ -441,6 +331,8 @@ void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr,
     memset(pckthdr, 0, pckthdr_len); 
     build_pkt_to_send(pckthdr, pckthdr_len, dst_addr, src_addr, flags);
 
+    see_pckt_info(pckthdr);
+
     ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)dst_addr, sizeof(struct sockaddr));
     printf("probe sent\n");
     if (status == -1){
@@ -457,30 +349,15 @@ void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr,
     // recieve resp 
     char resphdr[4096];
     status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
+
+    see_pckt_info(resphdr);
 }
 void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd){
     
-    // int sd = new_tcp_sock(uargs); 
-
-    // int tid = 1;
     uint8_t tcp_flags = 0;
-
-    // struct sockaddr_in dst_addr, src_addr;
-
-    // dst_addr.sin_family = AF_INET; 
-    // dst_addr.sin_port = htons( uargs->port );
-    // dst_addr.sin_addr.s_addr = inet_addr( uargs->host );
-
-    // srand(time(NULL));
-    // src_addr.sin_family = AF_INET; 
-    // src_addr.sin_port = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
-    // src_addr.sin_addr.s_addr = inet_addr( "127.0.0.1" );                                // hardcode for now, find interface address later 
 
     size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
     char pckthdr[pckthdr_len];
-
-    // printf("Got port: %u\n", src_addr.sin_port);
-    // printf("Size of pkt hdr: %ld\n", pckthdr_len);
 
     memset(pckthdr, 0, pckthdr_len); 
 
@@ -506,16 +383,12 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
     char resphdr[4096];
     status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
 
-    // printf("Port %lu is: ", uargs->port);
     char port_status[STATUS_MSG_SIZE];
 
     if (status < 0){
-        // printf("filtered | (no response received)\n");
         strcat(port_status, "filtered | (no response received)\n");
 
     } else {
-        // printf("recv bytes received: %ld\n", status);
-
         see_pckt_info(resphdr);
 
         // extract info from the packet 
@@ -690,8 +563,10 @@ void raw_packet_setup(user_args* uargs){
         case SYN: 
             syn_scan(&dst_addr, &src_addr, sd);
             break; 
+            
         case ACK:
-            break;  
+            break;
+
         default: 
             if      (_type == FIN) tcp_flags = FIN; 
             else if (_type == XMAS) tcp_flags = XMAS;  
