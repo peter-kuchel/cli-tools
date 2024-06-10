@@ -53,7 +53,7 @@ void handle_cli_args(int argc, char* argv[], user_args* uargs){
             }  else if (strncmp(token, "XMAS", type_len + 1) == 0){
                 uargs->type = XMAS; 
             } else if (strncmp(token, "ACK", type_len) == 0){
-                uargs->type = XMAS; 
+                uargs->type = ACK; 
             } else {
                 printf("TYPE not recognized, see usage with -help\n");
                 exit(EXIT_FAILURE);
@@ -81,19 +81,19 @@ void handle_cli_args(int argc, char* argv[], user_args* uargs){
 
 void config_scan_sock(user_args* uargs){
     
-    switch(uargs->type){
-        case SYN:
-            uargs->af_fam = AF_INET;
-            uargs->sargs._domain = AF_INET; 
-            uargs->sargs._type = SOCK_RAW; 
-            uargs->sargs._protocol = IPPROTO_TCP; // to configure 
-            break; 
+    switch(uargs->type){ 
         case CON:
             uargs->af_fam = AF_INET;
             uargs->sargs._domain = AF_INET; 
             uargs->sargs._type = SOCK_STREAM; 
             uargs->sargs._protocol = 0;
             break; 
+        default:
+            uargs->af_fam = AF_INET;
+            uargs->sargs._domain = AF_INET; 
+            uargs->sargs._type = SOCK_RAW; 
+            uargs->sargs._protocol = IPPROTO_TCP; // to configure 
+            break;
     }
 }
 
@@ -260,7 +260,8 @@ void build_packet(char* pckt, size_t pcktlen, struct sockaddr_in* dst, struct so
 void see_pckt_info(char* pckt){
     struct iphdr* iph = (struct iphdr*)pckt;
     struct tcphdr* tcph = CAST_TCP_HDR(pckt);
-    printf("SYN: %x, ACK: %x, RST: %x, FIN: %x\n", tcph->syn, tcph->ack, tcph->rst, tcph->fin);
+    printf("SYN: %x, ACK: %x, RST: %x, FIN: %x, PSH: %x, URG: %x\n", 
+            tcph->syn, tcph->ack, tcph->rst, tcph->fin, tcph->psh, tcph->urg);
 
     char sa[INET_ADDRSTRLEN], da[INET_ADDRSTRLEN];
 
@@ -319,7 +320,7 @@ ssize_t recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct socka
             incoming_src_addr = iph->saddr;
             incoming_dst_addr = iph->daddr;
 
-            printf("-{RECV ADDRS}- dst: %u, src: %u\n\n",incoming_dst_addr, incoming_src_addr);
+            // printf("-{RECV ADDRS}- dst: %u, src: %u\n\n",incoming_dst_addr, incoming_src_addr);
 
             if (incoming_dst_addr == org_src_addr && incoming_src_addr == org_dst_addr) 
                 break; 
@@ -348,11 +349,11 @@ ssize_t sendto_wrapper(int sd, char* packet, size_t pkt_len, struct sockaddr_in*
     return status; 
 }
 
-void send_probe(struct sockaddr_in* dst, struct sockaddr_in* src, int sd, uint8_t flags, char* pkt_buffer){
+// void send_probe(struct sockaddr_in* dst, struct sockaddr_in* src, int sd, uint8_t flags, char* pkt_buffer){
 
-    size_t pkt_len = TOTAL_PKT_SIZE();
-    memset(pkt_buffer, 0, pkt_len);
-}
+//     size_t pkt_len = TOTAL_PKT_SIZE();
+//     memset(pkt_buffer, 0, pkt_len);
+// }
 
 void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd, uint8_t flags){
     size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
@@ -381,6 +382,11 @@ void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr,
     status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
 
     see_pckt_info(resphdr);
+    printf("got status: %ld\n", status);
+
+    if (status < 0){
+        printf("Errno is: %s (%d)\n", strerror(errno), errno);
+    }
 }
 void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd){
     
@@ -488,7 +494,7 @@ void ack_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
 
     memset(pckthdr, 0, pckthdr_len); 
 
-    tcp_flags |= SYN;
+    tcp_flags |= ACK;
     build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
 
     see_pckt_info(pckthdr);
@@ -508,9 +514,18 @@ void ack_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
 
         if (attempts == 2 && status < 0) break;
 
-    } while (status > 0);
+    } while (status < 0);
 
-    see_pckt_info(resphdr);
+    
+
+    if (status < 0){
+        // no response received (filtered)
+        printf("status < 0, errno is: %d (%s)\n", errno, strerror(errno));
+    } else { 
+        // check resp rst field 
+        see_pckt_info(resphdr);
+        // struct tcphdr *tcph_resp = CAST_TCP_HDR(resphdr);
+    }
 }
 
 void single_con_scan(user_args* uargs){
@@ -643,10 +658,12 @@ void raw_packet_setup(user_args* uargs){
             break; 
 
         case ACK:
+            ack_scan(&dst_addr, &src_addr, sd);
             break;
 
         // handle FIN, NULL, and XMAS
         default: 
+            printf("probing with one of FIN | NULL | XMAS\n");
             if      (_type == FIN) tcp_flags = FIN; 
             else if (_type == XMAS) tcp_flags = XMAS;  
 
