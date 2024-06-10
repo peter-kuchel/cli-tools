@@ -50,6 +50,7 @@
 
 #define OPT_SIZE            4                       // tcp opt size (only setting mss opt)
 #define STATUS_MSG_SIZE     64
+#define ATTEMPTS_MAX        2
 
 
 #define IPH_TTL_DEFAULT  64

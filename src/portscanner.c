@@ -101,7 +101,6 @@ void find_public_inet_addr(struct sockaddr_in* src, in_addr_t dst_addr){
 
     // check if the dest is localhost, if so then make source localhost too 
     if (dst_addr == 0x0100007f ){
-        src->sin_family = AF_INET; 
         src->sin_addr.s_addr = dst_addr; 
         return; 
     }
@@ -133,7 +132,6 @@ void find_public_inet_addr(struct sockaddr_in* src, in_addr_t dst_addr){
         perror("find_public_inet_addr() couldn't find a public inet4 address to use");
         exit(EXIT_FAILURE);
     } else {
-        src->sin_family = AF_INET; 
         src->sin_addr.s_addr = inet_info->sin_addr.s_addr;
     }
 
@@ -307,6 +305,8 @@ ssize_t recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct socka
 
         if (bytes_recvd < 0) break; 
 
+        // check for possible ICMP errors
+
         tcph = CAST_TCP_HDR(resphdr);
         incoming_src_port = tcph->source; 
         incoming_dst_port = tcph->dest;
@@ -330,109 +330,93 @@ ssize_t recvfrom_wrapper(int sd, char* resphdr, size_t pckthdr_len, struct socka
     return bytes_recvd;
 }
 
-ssize_t sendto_wrapper(int sd, char* packet, size_t pkt_len, struct sockaddr_in* dst){
+void sendto_wrapper(int sd, char* packet, size_t pkt_len, struct sockaddr_in* dst){
 
     ssize_t status = sendto(sd, packet, pkt_len, 0, (struct sockaddr*)dst, sizeof(struct sockaddr));
 
     printf("probe sent\n");
     if (status == -1){
-        perror("failed to sendto() host");
+        perror("sendto() call failed, nothing was sent to the host");
         exit(EXIT_FAILURE);
     }
 
-    // printf("\nbytes sent: %ld\n", status);
     if ((size_t)status != pkt_len){
-        perror("not all bytes sent over socket");
+        perror("sendto() - not all bytes sent over socket");
         exit(EXIT_FAILURE);
     }
-
-    return status; 
 }
 
-// void send_probe(struct sockaddr_in* dst, struct sockaddr_in* src, int sd, uint8_t flags, char* pkt_buffer){
+ssize_t send_probe(struct sockaddr_in* dst, struct sockaddr_in* src, int sd, uint8_t flags, char* probe_pkt, char* resp_pkt){
 
-//     size_t pkt_len = TOTAL_PKT_SIZE();
-//     memset(pkt_buffer, 0, pkt_len);
-// }
+    ssize_t status;
+    size_t pkt_len  = TOTAL_PKT_SIZE();
 
-void single_way_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd, uint8_t flags){
-    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
-    char pckthdr[pckthdr_len];
+    int attempts = 0; 
 
-    memset(pckthdr, 0, pckthdr_len); 
-    build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, flags);
+    memset(probe_pkt, 0, pkt_len);
+    build_packet(probe_pkt, pkt_len, dst, src, flags);
 
-    see_pckt_info(pckthdr);
+    see_pckt_info(probe_pkt);
+    do {
+        
+        sendto_wrapper(sd, probe_pkt, pkt_len, dst);
 
-    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)dst_addr, sizeof(struct sockaddr));
-    printf("probe sent\n");
-    if (status == -1){
-        perror("failed to sendto() host");
-        exit(EXIT_FAILURE);
+        memset(resp_pkt, 0, pkt_len);
+        status = recvfrom_wrapper(sd, resp_pkt, pkt_len, dst, src);
+
+        attempts++;
+        if (attempts == ATTEMPTS_MAX){
+            break; 
+        }
+        
+    } while (status < 0);
+
+    return status; 
+     
+}
+
+void other_scan_type(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd, uint8_t flags){
+    
+    size_t pkt_len = TOTAL_PKT_SIZE();
+
+    char probe_pkt[pkt_len]; 
+    char resp[pkt_len];
+
+    ssize_t result = send_probe(dst_addr, src_addr, sd, flags, probe_pkt, resp);
+    
+    char port_status[STATUS_MSG_SIZE] = {0};
+    struct tcphdr *tcph_resp = CAST_TCP_HDR(resp);
+
+    if (result < 0){
+        if (errno == EAGAIN){
+            strcat(port_status, "open | filtered\n");
+        } else {
+
+        }
+        // printf("Errno is: %s (%d)\n", strerror(errno), errno);
+    } else if (tcph_resp->rst == 1){
+        strcat(port_status, "closed\n");
+    } else {
+        // possible that it might be an ICMP error, but not properly handling it yet - may never reach this
+
+        strcat(port_status, "filtered | (possible ICMP err)\n");
     }
 
-    // printf("\nbytes sent: %ld\n", status);
-    if ((size_t)status != pckthdr_len){
-        perror("not all bytes sent over socket");
-        exit(EXIT_FAILURE);
-    }
-
-    // recieve resp 
-    char resphdr[4096];
-    status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
-
-    see_pckt_info(resphdr);
-    printf("got status: %ld\n", status);
-
-    if (status < 0){
-        printf("Errno is: %s (%d)\n", strerror(errno), errno);
-    }
+    printf("Port is: %s\n", port_status);
 }
 void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd){
     
-    uint8_t tcp_flags = 0;
+    uint8_t tcp_flags = SYN;
+    size_t pkt_len = TOTAL_PKT_SIZE();
 
-    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
-    char pckthdr[pckthdr_len];
+    char probe_pkt[pkt_len]; 
+    char resp[pkt_len];
 
-    memset(pckthdr, 0, pckthdr_len); 
-
-    tcp_flags |= SYN;
-    build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
-
-    see_pckt_info(pckthdr);
-
-    ssize_t status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)dst_addr, sizeof(struct sockaddr));
-    printf("probe sent\n");
-    if (status == -1){
-        perror("failed to sendto() host");
-        exit(EXIT_FAILURE);
-    }
-
-    // printf("\nbytes sent: %ld\n", status);
-    if ((size_t)status != pckthdr_len){
-        perror("not all bytes sent over socket");
-        exit(EXIT_FAILURE);
-    }
-
-    // recieve resp 
-    char resphdr[pckthdr_len];
-
-    char port_status[STATUS_MSG_SIZE];
-    memset(port_status, 0, STATUS_MSG_SIZE);
-
-    int attempts = 0;
-    do {
-        // printf("attempt: %d\n", attempts);
-        status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
-        printf("got: %ld on attempt: %d\n", status, attempts);
-        attempts++;
-
-        if (attempts == 2) break;
-
-    } while (status < 0);
+    ssize_t result = send_probe(dst_addr, src_addr, sd, tcp_flags, probe_pkt, resp);
     
-    if (status < 0){
+    char port_status[STATUS_MSG_SIZE] = {0};
+
+    if (result < 0){
         if (errno == EAGAIN){
             strcat(port_status, "filtered | (no response received)\n");
         } else {
@@ -440,92 +424,66 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
         }
         
     } else {
-        see_pckt_info(resphdr);
+        see_pckt_info(resp);
 
         // extract info from the packet 
-        struct tcphdr *tcph_resp = CAST_TCP_HDR(resphdr);
+        struct tcphdr *tcph_resp = CAST_TCP_HDR(resp);
         if (tcph_resp->rst == 1){
             
             strcat(port_status, "closed\n");
-        } else {
-
-            // possible that it might be an ICMP error, but that will need to be implemented later
+        } else if (tcph_resp->syn == 1 && tcph_resp->ack == 1){
             
             /* 
                 Might not have to send the RST ourselves, Linux should respond to the 
                 unexpected SYN/ACK with a RST packet since it was not expecting the response 
                 from the host we are scanning (according to NMAP docs). Testing with nmap, it seems that 
                 it doesn't send a RST packet either using tcpdump to capture the packets 
-                
             */
-            // tcp_flags = 0;
-            // memset(pckthdr, 0, pckthdr_len);
-
-            // tcp_flags |= 0x04;
-            // build_packet(pckthdr, pckthdr_len, &dst_addr, &src_addr, tcp_flags);
-
-            // status = sendto(sd, pckthdr, pckthdr_len, 0, (struct sockaddr*)&dst_addr, sizeof(struct sockaddr));
             
-            // if (status == -1){
-            //     perror("failed to sendto() host");
-            //     printf("Errno is: %d\n", errno);
-            //     exit(EXIT_FAILURE);
-            // }
-
-            // if ((size_t)status < pckthdr_len){
-            //     perror("not all bytes sent over socket");
-            //     exit(EXIT_FAILURE);
-            // }
+            // tcp_flags = RST;
+            // memset(probe_pkt, 0, pkt_len);
+            // build_packet(probe_pkt, pkt_len, dst_addr, src_addr, tcp_flags);
+            // sendto_wrapper(sd, probe_pkt, pkt_len, dst_addr);
 
             strcat(port_status, "open\n");
+        } else {
+            // possible that it might be an ICMP error, but not properly handling it yet - may never reach this
+
+            strcat(port_status, "filtered | (possible ICMP err)\n");
         }
-        
     }
 
-    printf("Port is: %s", port_status);
-    close(sd);
+    printf("Port is: %s\n", port_status);
 }
 
 void ack_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd){
     uint8_t tcp_flags = ACK; 
 
-    size_t pckthdr_len = sizeof(struct iphdr) + sizeof(struct tcphdr) + OPT_SIZE; 
-    char pckthdr[pckthdr_len];
+    size_t pkt_len = TOTAL_PKT_SIZE();
 
-    memset(pckthdr, 0, pckthdr_len); 
+    char probe_pkt[pkt_len]; 
+    char resp[pkt_len];
 
-    tcp_flags |= ACK;
-    build_packet(pckthdr, pckthdr_len, dst_addr, src_addr, tcp_flags);
-
-    see_pckt_info(pckthdr);
-
-    ssize_t status = sendto_wrapper(sd, pckthdr, pckthdr_len, dst_addr);
-
-    char resphdr[pckthdr_len];
-
-    char port_status[STATUS_MSG_SIZE];
-    memset(port_status, 0, STATUS_MSG_SIZE);
-
-    int attempts = 0;
-    do {
-        printf("attempt: %d\n", attempts);
-        status = recvfrom_wrapper(sd, resphdr, pckthdr_len, dst_addr, src_addr);
-        attempts++;
-
-        if (attempts == 2 && status < 0) break;
-
-    } while (status < 0);
-
+    ssize_t result = send_probe(dst_addr, src_addr, sd, tcp_flags, probe_pkt, resp);
     
+    char port_status[STATUS_MSG_SIZE] = {0};
+    struct tcphdr *tcph_resp = CAST_TCP_HDR(resp);
 
-    if (status < 0){
-        // no response received (filtered)
-        printf("status < 0, errno is: %d (%s)\n", errno, strerror(errno));
-    } else { 
+    if (result < 0){
+        if (errno == EAGAIN){
+            strcat(port_status, "filtered | (no response)");
+        } else {
+            printf("[OTHER ERR] errno is: %d (%s)\n", errno, strerror(errno));
+        }
+    } else if (tcph_resp->rst == 1){ 
         // check resp rst field 
-        see_pckt_info(resphdr);
-        // struct tcphdr *tcph_resp = CAST_TCP_HDR(resphdr);
+        see_pckt_info(resp);
+        strcat(port_status, "unfiltered");
+    } else {
+        // ICMP error which isn't being properly handled at the moment - may never reach this
+        strcat(port_status, "filtered | (ICMP err)");
     }
+    printf("Port is: %s\n", port_status);
 }
 
 void single_con_scan(user_args* uargs){
@@ -647,6 +605,7 @@ void raw_packet_setup(user_args* uargs){
     srand(time(NULL));
 
     find_public_inet_addr(&src_addr, dst_addr.sin_addr.s_addr);
+    src_addr.sin_family = AF_INET; 
     src_addr.sin_port = htons( (rand() % (MAX_PORT - (1000 + tid))) + (1000 + tid) );
 
     uint8_t tcp_flags = 0;
@@ -663,13 +622,15 @@ void raw_packet_setup(user_args* uargs){
 
         // handle FIN, NULL, and XMAS
         default: 
-            printf("probing with one of FIN | NULL | XMAS\n");
+            // printf("probing with one of FIN | NULL | XMAS\n");
             if      (_type == FIN) tcp_flags = FIN; 
             else if (_type == XMAS) tcp_flags = XMAS;  
 
-            single_way_scan(&dst_addr, &src_addr, sd, tcp_flags);         
+            other_scan_type(&dst_addr, &src_addr, sd, tcp_flags);         
             break; 
     }
+
+    close(sd);
 }
 
 void single_type_opts(user_args* uargs){

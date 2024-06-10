@@ -1,15 +1,30 @@
 #!/bin/sh
 
-LOCAL_HOST=45.33.32.156
-# LOCAL_HOST=127.0.0.1
+# for testing for real (scanme.nmap.org): 45.33.32.156 - allowed to scan the site 
+REAL_HOST=45.33.32.156
+
+LOCAL_HOST=127.0.0.1
+
+# compile port scanner 
 make mk-bin-dir port-scanner
 
-# printf "full vanilla scan on localhost\n"
-# sleep 2
 
-printf "Testing SYN scan options\n"
-./bin/portscan -host=$LOCAL_HOST -port=22 -type=SYN 
+printf "[beginning type-tests on $LOCAL_HOST]"
+sleep 1
+./bin/portscan -host=$LOCAL_HOST -port=5432 
+sleep 1
+./bin/portscan -host=$LOCAL_HOST -port=5432 -type=SYN
+sleep 1 
+./bin/portscan -host=$LOCAL_HOST -port=5432 -type=ACK
+sleep 1
+./bin/portscan -host=$LOCAL_HOST -port=5432 -type=FIN
+sleep 1 
+./bin/portscan -host=$LOCAL_HOST -port=5432 -type=NULL 
+sleep 1 
+./bin/portscan -host=$LOCAL_HOST -port=5432 -type=XMAS
 
+# printf "beginning tests on scanme.nmap.org" 
+# ./bin/portscan -host=$REAL_HOST -port=22 -type=SYN
 
 # ##########################################################################################
 # nmap -sS 127.0.0.1 -Pn -p 11309

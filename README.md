@@ -1,9 +1,10 @@
 # cli-tools 
 
-A collection of command line tools for linux written in C for personal use and to better understand how existing tools, protocols, and concepts work. Some of this software is unfinished, don't have any high expectations. 
+A collection of command line tools for linux written in C for personal use and to better understand how existing tools, protocols, and concepts work. Some of this software is unfinished, *please* don't have any high expectations. 
 
 
-## current tools available (works in progress marked with (*) and may not be fully usable yet)
+## Current tools available 
+*(works in progress marked with (\*), may not be fully usable yet)*
 
 * ipinfov1
   * get basic ip info from the kernel using interface addresses
@@ -16,9 +17,14 @@ A collection of command line tools for linux written in C for personal use and t
 * pnginspect
   * inspects the chunks of a png file
 * portscan (*)
-  * port scanner that supports the following scan types 
-      * Connect
-      * SYN (a work in progress atm) 
+  * A TCP port scanner that supports the following scan types: 
+      * CONNECT
+      * SYN
+      * NULL 
+      * FIN 
+      * XMAS
+      * ACK 
+  * Multi-threading support only available for CONNECT at the moment 
 * stegov1
   * hide text inside of a png by appending data after the IEND chunk 
 
@@ -26,7 +32,7 @@ A collection of command line tools for linux written in C for personal use and t
 * zlib   -->
 
 
-## installation
+## Installation
 
 Running with 
 ```bash
