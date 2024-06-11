@@ -27,14 +27,15 @@ void build_packet(char* pkt, size_t pkt_len, in_addr_t dst, in_addr_t src){
     iph->tot_len = htons( pkt_len );
     iph->id = htons( (uint16_t)( rand() % PORT_MAX ) );
     iph->protocol = IPPROTO_ICMP;
+    iph->ttl = 64;
     iph->saddr = src;  
     iph->daddr = dst; 
 
     icmph = CAST_ICMP_HDR(pkt);
-    icmph->type = ICMP_ECHOREPLY; 
-    icmph->code = ICMP_ECHOREPLY;
-    icmph->echo.id = 1000; 
-    icmph->echo.seq = 0; 
+    icmph->type = ICMP_ECHO; 
+    // icmph->code = 0;
+    icmph->un.echo.id = htons( (uint16_t)( rand() % PORT_MAX ) ); 
+    icmph->un.echo.sequence = 1; 
     
     size_t iphdr_size = sizeof(struct iphdr); 
 
@@ -102,7 +103,8 @@ int main(int argc, char** argv){
     memset((char*)&src, 0, sizeof(struct sockaddr_in));
 
     dst.sin_family = AF_INET;
-    dst.sin_addr.s_addr = inet_addr("10.1.1.147"); 
+    // dst.sin_addr.s_addr = inet_addr("10.1.1.147"); 
+    dst.sin_addr.s_addr = inet_addr("45.33.32.156"); 
 
     src.sin_family = AF_INET;
     src.sin_addr.s_addr = inet_addr("10.1.1.147"); 
@@ -141,9 +143,12 @@ int main(int argc, char** argv){
             if (status < 0){
                 printf("[Error receiving]: %d -- %s\n", errno, strerror(errno));
                 // exit(1);
-            } 
+            } else {
+                printf("[Recieved]\n");
+                debug_pkt_contents(resp_pkt);
+            }
 
-            debug_pkt_contents(resp_pkt);
+            
         } while (1);
         icmp_seq_num++; 
     }
