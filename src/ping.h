@@ -18,6 +18,7 @@
 
 #include "inetutils.h"
 
+#define ICMP_PING_SEQ_MAX 8
 
 #define CAST_ICMP_HDR(ptr) \
     ( (struct icmphdr*)(ptr + ( sizeof(struct iphdr) )) )
