@@ -58,8 +58,9 @@ in_addr_t find_src_inet_addr(){
 			ifa_saddr != NULL 						&& 		// check that interface addr is not null
 			strcmp(curr_ifa->ifa_name, "lo") != 0 	&& 		// check that interface is not local 
 			ifa_saddr->sa_family == AF_INET 				// check that address is ipv4
-		){					
-			addr =  ((struct sockaddr_in*)ifa_saddr)->sin_addr.s_addr;	// found inet addr, assume is the one we want
+		){	
+			// found an inet addr, assume it's the one we want since it is not local 
+			addr =  ((struct sockaddr_in*)ifa_saddr)->sin_addr.s_addr;	
 			break; 
 		}
 

@@ -148,7 +148,7 @@ int new_tcp_sock(user_args* uargs){
     }
 
     struct timeval sock_time_out;
-    sock_time_out.tv_sec = 3;
+    sock_time_out.tv_sec = 1;
     sock_time_out.tv_usec = 0;
 
     size_t timeval_s = sizeof(struct timeval);
@@ -356,7 +356,7 @@ ssize_t send_probe(struct sockaddr_in* dst, struct sockaddr_in* src, int sd, uin
     memset(probe_pkt, 0, pkt_len);
     build_packet(probe_pkt, pkt_len, dst, src, flags);
 
-    see_pckt_info(probe_pkt);
+    // see_pckt_info(probe_pkt);
     do {
         
         sendto_wrapper(sd, probe_pkt, pkt_len, dst);
@@ -424,7 +424,7 @@ void syn_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
         }
         
     } else {
-        see_pckt_info(resp);
+        // see_pckt_info(resp);
 
         // extract info from the packet 
         struct tcphdr *tcph_resp = CAST_TCP_HDR(resp);
@@ -477,7 +477,7 @@ void ack_scan(struct sockaddr_in* dst_addr, struct sockaddr_in* src_addr, int sd
         }
     } else if (tcph_resp->rst == 1){ 
         // check resp rst field 
-        see_pckt_info(resp);
+        // see_pckt_info(resp);
         strcat(port_status, "unfiltered");
     } else {
         // ICMP error which isn't being properly handled at the moment - may never reach this
