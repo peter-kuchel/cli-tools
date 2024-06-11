@@ -46,6 +46,8 @@ stego-v1:
 minserver:
 	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
 
-local-test:
-	$(CC) $(CFLAGS) $(LOGGING) $(LOG) $(SRC_DIR)/test.c -o $(BIN_DIR)/test
+ping:
+	$(CC) $(CFLAGS) $(INET) $(SRC_DIR)/ping.c -o $(BIN_DIR)/ping
+# local-test:
+# 	$(CC) $(CFLAGS) $(LOGGING) $(LOG) $(SRC_DIR)/test.c -o $(BIN_DIR)/test
 
