@@ -21,7 +21,7 @@ long strtol_parse(char* str){
 
     // no digits were detected at all in this case 
     if (str == endptr){
-        fprintf(stderr, "Not a correct port\nPort needs to be between 1 - 65535");
+        fprintf(stderr, "Not a number, no digits were detected\n");
         exit(EXIT_FAILURE);
     }
 
