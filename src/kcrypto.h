@@ -15,6 +15,8 @@
 #include <linux/netlink.h>
 #include <asm/types.h>
 
+#include "nlutils.h"
+
 
 
 
