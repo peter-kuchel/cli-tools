@@ -4,19 +4,34 @@ A collection of command line tools for linux written in C for personal use and t
 
 
 ## Current tools available 
-*(works in progress marked with (\*), may not be fully usable yet)*
+*(major works in progress marked with (\*), though some tools do not offer full functionality at the moment)*
 
 * ipinfov1
   * get basic ip info from the kernel using interface addresses
+
 * ipinfov2
   * get more detailed ip info from the kernel using NETLINK sockets
+
+* kcrypto (*)
+  * use the linux kernel crypto functionality via netlink sockets
+
 * minserver
   * minimal HTTP 1.1 server for testing static websites 
   * currently supports only GET and POST
   * supports IPv6
+
+* obfuscator (*)
+  * remove whitespace and rename variables of code files 
+  * supports obfuscating the following languages:  
+
+* ping 
+  * simple ping tool that uses ICMP to check if a host is online (only ipv4 at the moment)
+  * currently doesn't support DNS resolution of site names (needs ipv4 address as input)
+
 * pnginspect
   * inspects the chunks of a png file
-* portscan (*)
+
+* portscan
   * A TCP port scanner that supports the following scan types: 
       * CONNECT
       * SYN
@@ -25,6 +40,7 @@ A collection of command line tools for linux written in C for personal use and t
       * XMAS
       * ACK 
   * Multi-threading support only available for CONNECT at the moment 
+
 * stegov1
   * hide text inside of a png by appending data after the IEND chunk 
 
@@ -39,5 +55,8 @@ Running with
 make 
 ```
 will create all of the tools inside of a directory named bin. 
-Usage of all tools can be seen with the flag: -help
+Tools can be build individually by inspecting the makefile. 
+
+Usage of all tools should be seen with the flag: -help or -h , or by running the binary with no input. 
+
 
