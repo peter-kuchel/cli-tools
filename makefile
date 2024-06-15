@@ -13,6 +13,7 @@ IMGS	= 	$(SRC_DIR)/png.c
 CRYPTO 	= 	$(SRC_DIR)/kcrypto.c
 INET =  	$(SRC_DIR)/inetutils.c
 LOG  =  	$(SRC_DIR)/logging.c
+NTL  =      $(SRC_DIR)/nlutils.c
 
 all: 	mk-bin-dir 		\
 	 	port-scanner 	\
@@ -48,6 +49,8 @@ minserver:
 
 ping:
 	$(CC) $(CFLAGS) $(INET) $(COMMONS) $(SRC_DIR)/ping.c -o $(BIN_DIR)/ping
-# local-test:
-# 	$(CC) $(CFLAGS) $(LOGGING) $(LOG) $(SRC_DIR)/test.c -o $(BIN_DIR)/test
+
+kcrypto: 
+	$(CC) $(CFLAGS) $(COMMONS) $(NTL) $(SRC_DIR)/kcrypto.c -o $(BIN_DIR)/kcrypto
+
 

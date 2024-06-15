@@ -18,7 +18,13 @@
 #include "nlutils.h"
 
 
+#define SHA_256_SIZE        32
 
+
+typedef struct {
+    uint8_t include_opts;
+    int type
+} kcryptopts;
 
 
 #endif
