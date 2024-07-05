@@ -3,7 +3,11 @@ SRC_DIR = src
 BIN_DIR = bin
 
 CC = gcc
-CFLAGS = -Wall -Wextra -std=gnu99 -g
+CXX = g++
+
+CFLAGS = -Wall -Wextra -Wcast-align -std=c99 - 02 -g
+CPPFLAGS = -Wall -Wextra -Wpendantic -std=c++11 -02 -g
+
 THREADS = -pthread
 CURL = -lcurl
 MATH = -lm
