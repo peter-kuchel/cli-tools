@@ -5,8 +5,8 @@ BIN_DIR = bin
 CC = gcc
 CXX = g++
 
-CFLAGS = -Wall -Wextra -Wcast-align -std=c99 - 02 -g
-CPPFLAGS = -Wall -Wextra -Wpendantic -std=c++11 -02 -g
+CFLAGS = -Wall -Wextra -Wcast-align -std=gnu99 -O2 -g
+CPPFLAGS = -Wall -Wextra -Wpedantic -std=c++11 -O2 -g 
 
 THREADS = -pthread
 CURL = -lcurl
@@ -14,7 +14,7 @@ MATH = -lm
 
 COMMONS = 	$(SRC_DIR)/common.c
 IMGS	= 	$(SRC_DIR)/png.c
-CRYPTO 	= 	$(SRC_DIR)/kcrypto.c
+CRYPTO 	= 	$(SRC_DIR)/kcrypto.clnet
 INET =  	$(SRC_DIR)/inetutils.c
 LOG  =  	$(SRC_DIR)/logging.c
 NTL  =      $(SRC_DIR)/nlutils.c
@@ -26,6 +26,7 @@ all: 	mk-bin-dir 		\
 	 	png-inspector 	\
 	 	stego-v1 		\
 	 	minserver 		\
+	 	ping			\
 
 mk-bin-dir:
 	mkdir -p bin 
@@ -49,12 +50,15 @@ stego-v1:
 	$(CC) $(CFLAGS) $(COMMONS) $(IMGS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stegov1
 
 minserver:
-	$(CC) $(CFLAGS) $(CURL) $(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
+	$(CC) $(CFLAGS) $(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
 
 ping:
 	$(CC) $(CFLAGS) $(INET) $(COMMONS) $(SRC_DIR)/ping.c -o $(BIN_DIR)/ping
 
 kcrypto: 
 	$(CC) $(CFLAGS) $(COMMONS) $(NTL) $(SRC_DIR)/kcrypto.c -o $(BIN_DIR)/kcrypto
+
+lines:
+	$(CXX) $(CPPFLAGS) $(SRC_DIR)/lines.cpp -o $(BIN_DIR)/lines 
 
 
