@@ -405,7 +405,7 @@ void send_server_err(const clientinfo* ci, int err_code){
 
 void handle_req_err(const clientinfo* ci, int nerrno){
 
-	int errcode; 
+	int errcode = 0; 
 
 	if (nerrno < -1){
 
@@ -517,9 +517,9 @@ int send_file_body(const clientinfo* ci, FILE* f, size_t f_size, char* file_ext)
 	char f_content[f_size + 1];
 	memset(f_content, 0, f_size + 1);
 
-	fread(f_content, sizeof(char), f_size, f);
+	size_t bytes_read = fread(f_content, sizeof(char), f_size, f);
 
-	if (ferror(f) != 0){
+	if (ferror(f) != 0 || bytes_read < f_size){
 
 		return MINSERV_SERV_ERR; 
 	}
