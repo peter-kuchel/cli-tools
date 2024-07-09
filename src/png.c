@@ -33,7 +33,14 @@ int inspect_png_sig(FILE* png){
 void read_pngchdr(pngchdr* pchdr, FILE* png){
     uint8_t data[PNG_CHSZ];
 
-    fread(data, sizeof(uint8_t), PNG_CHSZ, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), PNG_CHSZ, png);
+
+    // maybe handle this a little better 
+    if (bytes_read < PNG_CHSZ){
+        printf("An error occured when attemping to read the chunk\n");
+        perror("fread(): ");
+        exit(1);
+    }
 
     pchdr->len = htobe32( *( (uint32_t*)data ) );
     pchdr->hdrtype = htobe32( *( (uint32_t*)(data + 4) ) );

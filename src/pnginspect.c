@@ -96,7 +96,13 @@ void read_pngbkgd(FILE* png, uint32_t bytes){
     long pos = ftell(png);
 
     uint8_t data[bytes];
-    fread(data, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     /* RGB */
     if (bytes == 6){
@@ -130,7 +136,13 @@ void read_pngchrm(FILE* png, uint32_t bytes){
     int incptr = 0;
 
     uint32_t data[num];
-    fread(data, sizeof(uint32_t), num, png);
+    size_t bytes_read = fread(data, sizeof(uint32_t), num, png);
+
+    if (bytes_read < num){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     float white_p_x = ((float)( htobe32( *(data) ) ) / (float)PNG_CHRM_DIV);
     float white_p_y = ((float)( htobe32( *(data + (++incptr)) ) ) / (float)PNG_CHRM_DIV);
@@ -153,7 +165,13 @@ void read_pngphys(FILE* png, uint32_t bytes){
 
     uint8_t data[bytes]; 
     int incptr = 4; 
-    fread(data, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     uint32_t ppu_x = htobe32( *(uint32_t*)data );
     uint32_t ppu_y = htobe32( *(uint32_t*)(data+incptr));
@@ -171,7 +189,13 @@ void read_pngsrgb(FILE* png, uint32_t bytes){
     long pos = ftell(png);
     uint8_t render_intent; 
 
-    fread(&render_intent, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(&render_intent, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     printf("rendering intent [%d]", render_intent);
     switch(render_intent){
@@ -202,7 +226,13 @@ void read_pngtime(FILE* png, uint32_t bytes){
     int inc = 2;
 
     uint8_t data[bytes]; 
-    fread(data, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     uint16_t year = htobe16( *(uint16_t*)data );
     uint8_t month = *(data + (++inc));
@@ -220,7 +250,13 @@ void read_pnggama(FILE* png, uint32_t bytes){
     long pos = ftell(png);
 
     uint8_t data[bytes];
-    fread(data, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     uint32_t _gamma = htobe32( *(uint32_t*)data );
 
@@ -237,7 +273,13 @@ void read_pngihdr(FILE* png, uint32_t bytes){
     int incptr = 4; 
     uint8_t data[bytes]; 
 
-    fread(data, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     uint32_t width = htobe32( *(uint32_t*)data ); 
     uint32_t height = htobe32( *(uint32_t*)(data + incptr) );
@@ -263,7 +305,13 @@ void read_pngtext(FILE* png, uint32_t bytes){
     uint8_t data[bytes + 1]; 
     uint32_t keypos = 0; 
 
-    fread(data, sizeof(uint8_t), bytes, png);
+    size_t bytes_read = fread(data, sizeof(uint8_t), bytes, png);
+
+    if (bytes_read < bytes){
+
+        perror("fread() : ");
+        exit(1);
+    }
 
     while (data[++keypos] != '\0');
     
@@ -295,11 +343,18 @@ void inspect_pngtext(uargs* ua){
     }
 
     /* check chunks until a text in set mode appears */
-    int n = 0; 
+    int n = 0;
+    size_t bytes_read; 
     do {
 
         // read the next chunk 
-        fread(pnghdr, sizeof(uint8_t), PNG_CHSZ, png);
+        bytes_read = fread(pnghdr, sizeof(uint8_t), PNG_CHSZ, png);
+
+        if (bytes_read < PNG_CHSZ){
+
+            perror("fread() : ");
+            exit(1);
+        }
 
         uint32_t png_csz  = htobe32( *( (uint32_t*)pnghdr ));
         uint32_t png_chdr = htobe32( *((uint32_t*)(pnghdr + 4)));

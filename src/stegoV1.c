@@ -133,17 +133,26 @@ void copy_png_data(FILE* png, FILE* wpng){
      uint8_t hdr[PNG_CHSZ]; 
 
      uint32_t png_chdr, png_csz;
+     size_t bytes_read, bytes_written;
 
      long sig = be64toh( PNG_SIGR );
 
      /*  write the file sig first to the write file */ 
-     fwrite(&sig, sizeof(uint64_t), 1, wpng);
+     bytes_written = fwrite(&sig, sizeof(uint64_t), 1, wpng);
+     if (bytes_written < 1){
+          perror("fwrite() writing PNG SIG : ");
+          exit(1);
+     }
 
      do {
 
           long pos = ftell(png);
           /* read the next chunk */ 
-          fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
+          bytes_read = fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
+          if (bytes_read < PNG_CHSZ){
+               perror("fread() reading PNG_CHSZ : ");
+               exit(1);
+          }
 
           png_chdr = htobe32( *((uint32_t*)(hdr + 4)));
           png_csz  = htobe32( *( (uint32_t*)hdr ));
@@ -153,8 +162,19 @@ void copy_png_data(FILE* png, FILE* wpng){
           fseek(png, pos, SEEK_SET);
 
           /* the fread call automatically moves the f ptr*/
-          fread(data, sizeof(uint8_t), sizeof(data), png);
+          bytes_read = fread(data, sizeof(uint8_t), sizeof(data), png);
+
+          if (bytes_read < PNG_CHSZ){
+               perror("fread() reading PNG_CHSZ : ");
+               exit(1);
+          }
+
           fwrite(data, sizeof(uint8_t), sizeof(data), wpng);
+
+          if (bytes_written < sizeof(data)){
+               perror("fwrite() writing chunk to file: ");
+               exit(1);
+          }
 
           
      } while (png_chdr != PNG_IEND);
@@ -165,11 +185,17 @@ void find_iend(FILE* png){
      char hdr[PNG_CHSZ];
 
      uint32_t png_chdr, png_csz;
+     size_t bytes_read; 
 
      do {
           /* read the next chunk */ 
           
-          fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
+          bytes_read = fread(hdr, sizeof(uint8_t), PNG_CHSZ, png);
+
+          if (bytes_read < PNG_CHSZ){
+               perror("fread() reading PNG chunk : ");
+               exit(1);
+          }
 
           png_chdr = htobe32( *((uint32_t*)(hdr + 4)));
 
