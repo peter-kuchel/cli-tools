@@ -113,7 +113,7 @@ void inspect_files(std::vector<std::string>& paths, linespath& lp){
 	filemap fmap; 
 
 	std::string _space (lp.longest_path_name - 11 + 5, ' ');
-	std::string _row_space (ROW_SPACE, ' ');
+	std::string _row_space (ROW_SPACE - 7, ' ');
 	std::cout << "[file name]" << _space << "[lines]" << _row_space <<"[size in bytes]" << std::endl; 
 	
 	std::string line_token; 
@@ -140,7 +140,7 @@ void inspect_files(std::vector<std::string>& paths, linespath& lp){
 			size_t num_digits = get_digits(c);
 
 			std::string _fname_space (lp.longest_path_name - p.size() + 5, ' ');
-			std::string _linespace (lp.longest_path_name - num_digits, ' ');
+			std::string _linespace (ROW_SPACE - num_digits, ' ');
 
 			std::cout 	<< p 
 						<< _fname_space
