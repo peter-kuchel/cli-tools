@@ -5,11 +5,10 @@ BIN_DIR = bin
 CC = gcc
 CXX = g++
 
-CFLAGS = -Wall -Wextra -Wcast-align -std=gnu99 -O2 -g
-CPPFLAGS = -Wall -Wextra -Wpedantic -std=c++11 -O2 -g 
+CFLAGS = -Wall -Wextra -Wcast-align -std=gnu99 -O2
+CPPFLAGS = -Wall -Wextra -Wpedantic -std=c++11 -O2
 
 THREADS = -pthread
-CURL = -lcurl
 MATH = -lm
 
 COMMONS = 	$(SRC_DIR)/common.c
@@ -27,6 +26,7 @@ all: 	mk-bin-dir 		\
 	 	stego-v1 		\
 	 	minserver 		\
 	 	ping			\
+	 	lines			\
 
 mk-bin-dir:
 	mkdir -p bin 
