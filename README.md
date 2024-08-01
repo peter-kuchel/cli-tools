@@ -1,28 +1,33 @@
 # cli-tools 
 
-A collection of command line tools for linux written in C for personal use and to better understand how existing tools, protocols, and concepts work. Some of this software is unfinished, *please* don't have any high expectations. 
+A collection of command line tools for linux written in C/C++ for personal use and to better understand how existing tools, protocols, and concepts work. Some of this software is unfinished, *please* don't have any high expectations. 
 
 
 ## Current tools available 
 *(major works in progress marked with (\*), though some tools do not offer full functionality at the moment)*
 
+* icmsgpv6 (\*)
+  * chat application tunneling via icmp on ipv6  
 * ipinfov1
   * get basic ip info from the kernel using interface addresses
 
 * ipinfov2
   * get more detailed ip info from the kernel using NETLINK sockets
 
-* kcrypto (*)
+* kcrypto (\*)
   * use the linux kernel crypto functionality via netlink sockets
+
+* lines 
+  * simple tool to get line and size numbers for a project 
 
 * minserver
   * minimal HTTP 1.1 server for testing static websites 
   * currently supports only GET and POST
   * supports IPv6
 
-* obfuscator (*)
+<!-- * obfuscator (\*)
   * remove whitespace and rename variables of code files 
-  * supports obfuscating the following languages:  
+  * supports obfuscating the following languages:   -->
 
 * ping 
   * simple ping tool that uses ICMP to check if a host is online (only ipv4 at the moment)
