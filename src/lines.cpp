@@ -118,6 +118,9 @@ void inspect_files(std::vector<std::string>& paths, linespath& lp){
 	
 	std::string line_token; 
 	std::ifstream f;
+
+	int total_lines = 0; 
+	size_t total_bytes = 0; 
 	for (auto& p : paths){
 		
 		f.open(p);
@@ -126,6 +129,7 @@ void inspect_files(std::vector<std::string>& paths, linespath& lp){
 			int c = 0; 
 			while (std::getline(f, line_token, '\n')) c++;  
 
+			total_lines += c; 
 			f.close();
 
 			struct stat stat_obj;
@@ -136,6 +140,7 @@ void inspect_files(std::vector<std::string>& paths, linespath& lp){
 			}
 
 			size_t fsize = stat_obj.st_size; 
+			total_bytes += fsize; 
 
 			size_t num_digits = get_digits(c);
 
@@ -156,6 +161,15 @@ void inspect_files(std::vector<std::string>& paths, linespath& lp){
 
 		std::string fext = get_ext(p);
 	}
+
+	std::cout << "-----" << std::endl; 
+
+	std::string tot = "Total";
+	std::string tot_space (lp.longest_path_name - tot.size() + 5, ' ');
+	size_t tot_num_digits = get_digits(total_lines);
+	std::string tot_linespace (ROW_SPACE - tot_num_digits, ' ');
+
+	std::cout << tot << tot_space << total_lines << tot_linespace << total_bytes << std::endl; 
 }
 
 int main(int argc, char* argv[]){
