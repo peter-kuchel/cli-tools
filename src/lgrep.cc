@@ -1,13 +1,13 @@
 #include "Server.h"
 
-void create_chr_set(chr_set& c_set, const std::string& chars){
+void create_chr_set(chr_set &c_set, const std::string &chars){
 
     for (auto c = std::begin(chars); c != std::end(chars); ++c)
         c_set.insert(*c); 
     
 }
 
-bool check_exists_in(const std::string& str, chr_set& check_set){
+bool check_exists_in(const std::string &str, chr_set &check_set){
     for ( auto chr = std::begin(str); chr != std::end(str); ++chr ){
             chr_itr has_digit = check_set.find(*chr);
 
@@ -18,26 +18,166 @@ bool check_exists_in(const std::string& str, chr_set& check_set){
         return 0;
 }
 
-bool match_pattern(const std::string& input_line, const std::string& pattern) {
-    if (pattern.length() == 1) {
-        return input_line.find(pattern) != std::string::npos;
+void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &re){
 
-    } else if (pattern.compare("\\d") == 0){
-        return check_exists_in(input_line, DIGITS);
-        
-    } else if (pattern.compare("\\w") == 0){
-        return check_exists_in(input_line, ALPHA_NUMERIC);
+    re.substr.clear();
+    re.char_set.clear();
+    re.negative_group = false;  
+
+    // std::cout << "got: "<< re.pattern << std::endl;
+
+    switch(re.pattern){
+        case REGXCASE::ALPHA_SINGLE: 
+            re.char_set.insert(*pattern_iter);
+            break; 
+
+        case REGXCASE::ALPHA_ANY_SINGLE:
+            // create_chr_set(re.char_set, CHAR_UPPER + CHAR_LOWER + UNDER_SCORE + CHAR_DIGITS);
+            re.char_set = ALPHA_NUMERIC; 
+            break; 
+
+        case REGXCASE::DIGIT_ANY_SINGLE:
+            // create_chr_set(re.char_set, CHAR_DIGITS); 
+            re.char_set = DIGITS;  
+            break; 
+
+        case REGXCASE::GROUPING:
+            
+            if (*(pattern_iter + 1) == '^' && *pattern_iter == '['){
+                re.negative_group = true;
+                ++pattern_iter; 
+            } 
+                    
+            while (*(++pattern_iter) != ']')
+                re.char_set.insert( *pattern_iter );
+
+            break; 
+
+        default:
+            break; 
+    }
+
+    ++pattern_iter; 
+}
+
+void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex &re){
+ 
+    if (*pattern_iter == '\\'){
+
+        ++pattern_iter;
+        switch(*pattern_iter){
+
+            case 'w':
+                re.pattern = REGXCASE::ALPHA_ANY_SINGLE;
+                break;
+            case 'd':
+                re.pattern =  REGXCASE::DIGIT_ANY_SINGLE;
+                break;
+            default: 
+                re.pattern = REGXCASE::NOT_RECOGNIZED;
+                break;
+        }
+    }
+
+    else if (*pattern_iter == '['){
+        // ++pattern_iter; 
+        re.pattern = REGXCASE::GROUPING; 
+    }
+
+    else if ( ALL_CHARS.find( *pattern_iter ) != ALL_CHARS.end() ){
+
+        re.pattern = REGXCASE::ALPHA_SINGLE;
 
     } else {
-        throw std::runtime_error("Unhandled pattern " + pattern);
+
+        re.pattern = REGXCASE::NOT_RECOGNIZED; 
+    }
+
+    // std::cout << "building regex" << std::endl; 
+    build_regex_match(pattern_iter, re); 
+    
+}
+
+bool check_regex_match(char c, struct regex &re){
+
+    // std::cout << "char: " << c << " with pattern: " << re.pattern << std::endl;
+    // debug_chr_set(re);
+    // std::cout << "# in chr_set: " << re.char_set.size() << ", negative group: " << re.negative_group << std::endl; 
+    bool result; 
+    switch (re.pattern){
+        case REGXCASE::ALPHA_SINGLE:
+        case REGXCASE::ALPHA_ANY_SINGLE:
+        case REGXCASE::DIGIT_ANY_SINGLE:
+            return ( re.char_set.find(c) != re.char_set.end() );
+
+        case REGXCASE::GROUPING:
+            
+            result = re.char_set.find(c) != re.char_set.end();
+            if (re.negative_group) 
+                return !result; 
+            return result; 
+
+        default:
+            return false; 
+
+    }
+}
+
+bool match_pattern(const std::string &input_line, const std::string &pattern){
+
+    bool result = true, entry_position = false; 
+    regex re; 
+
+    std::string::const_iterator pattern_iter = std::begin(pattern);
+    std::string::const_iterator input_str = std::begin(input_line); 
+
+    // match with first pattern that appears in the regex somewhere in the string
+    parse_pattern_next(pattern_iter, re);
+
+    // std::cout << "finding entry" << std::endl;
+    while ( input_str != std::end(input_line) ){
+
+        entry_position = check_regex_match(*input_str, re);
+
+        // std::cout << "entry found:" << entry_position << std::endl; 
+        ++input_str;
+        if (entry_position) break; 
         
     }
+
+
+    // std::cout << "finding entry finished" << std::endl;
+    if (input_str == std::end(input_line) && !entry_position)
+        return false; 
+
+
+    // if found 1st pattern then try and match the rest
+    while (result && input_str != std::end(input_line)){
+
+        if (pattern_iter == std::end(pattern))
+            break; 
+
+        parse_pattern_next(pattern_iter, re);
+
+        result = check_regex_match(*input_str, re);
+        ++input_str;
+    }
+
+    // input exhausted before pattern --> return false 
+    if (input_str == std::end(input_line) && pattern_iter != std::end(pattern))
+        return false; 
+    
+    
+    return result;
 }
 
 int main(int argc, char* argv[]) {
 
     create_chr_set(DIGITS, CHAR_DIGITS);
-    create_chr_set(ALPHA_NUMERIC, CHAR_UPPER + CHAR_LOWER + UNDER_SCORE + CHAR_DIGITS);
+    create_chr_set(ALPHA_NUMERIC, CHAR_UPPER + CHAR_LOWER + CHAR_DIGITS);
+    create_chr_set(ALL_CHARS, CHAR_UPPER + CHAR_LOWER + CHAR_NON_SPEC + CHAR_DIGITS);
+
+    debug_regexcase();
 
     // Flush after every std::cout / std::cerr
     std::cout << std::unitbuf;
