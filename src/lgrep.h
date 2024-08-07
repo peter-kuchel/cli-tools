@@ -27,12 +27,13 @@ enum REGXCASE {
 
 	NOT_RECOGNIZED,
 
-	ALPHA_SINGLE, 
+	ANY_SINGLE, 
 
 	ALPHA_ANY_SINGLE, 
 	DIGIT_ANY_SINGLE,
 
-	GROUPING
+	GROUPING,
+	START_OF_LINE,
 
 };
 
@@ -42,15 +43,17 @@ struct regex {
 	std::string substr; 
 	REGXCASE pattern; 
 	bool negative_group;  
+	bool start_of_line; 
 
 }; 
 
 void debug_regexcase(){
 	std::cout << "NOT_RECOGNIZED: " << REGXCASE::NOT_RECOGNIZED << "\n"
-			  << "ALPHA_SINGLE: " << REGXCASE::ALPHA_SINGLE << "\n"
+			  << "ANY_SINGLE: " << REGXCASE::ANY_SINGLE << "\n"
 			  << "ALPHA_ANY_SINGLE: " << REGXCASE::ALPHA_ANY_SINGLE << "\n"
 			  << "DIGIT_ANY_SINGLE: " << REGXCASE::DIGIT_ANY_SINGLE << "\n"
-			  << "GROUPING: " << REGXCASE::GROUPING << "\n" << 
+			  << "GROUPING: " << REGXCASE::GROUPING << "\n" 
+			  << "START_OF_LINE: " << REGXCASE::START_OF_LINE << "\n" << 
 	std::endl; 
 }
 
