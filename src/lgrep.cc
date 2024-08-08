@@ -18,12 +18,17 @@ bool check_exists_in(const std::string &str, chr_set &check_set){
         return 0;
 }
 
-void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &re){
-
+void reset_regex(struct regex &re){
     re.substr.clear();
     re.char_set.clear();
     re.negative_group = false;  
     re.start_of_line  = false; 
+    re.end_of_line = false;
+}
+
+void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &re){
+
+     reset_regex(re);
 
     // std::cout << "got: "<< re.pattern << std::endl;
 
@@ -55,6 +60,9 @@ void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &
         case REGXCASE::START_OF_LINE: 
             re.start_of_line = true; 
             break; 
+        case REGXCASE::END_OF_LINE:
+            re.end_of_line = true; 
+            break;
         default:
             break; 
     }
@@ -64,7 +72,6 @@ void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &
 
 void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex &re){
     
-    // std::cout << "parsing: " << *pattern_iter << " | match? " << (*pattern_iter == '^') << std::endl; 
     if (*pattern_iter == '\\'){
 
         ++pattern_iter;
@@ -84,13 +91,17 @@ void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex 
     } else if (*pattern_iter == '['){
 
         re.pattern = REGXCASE::GROUPING; 
-        // ++pattern_iter;
 
     } else if (*pattern_iter == '^'){
 
         re.pattern = REGXCASE::START_OF_LINE;
 
-    } else if ( ALL_CHARS.find( *pattern_iter ) != ALL_CHARS.end() ){
+    } else if (*pattern_iter == '$'){
+
+        // std::cout << "END OF LINE" << std::endl;
+        re.pattern = REGXCASE::END_OF_LINE; 
+
+    }else if ( ALL_CHARS.find( *pattern_iter ) != ALL_CHARS.end() ){
 
         re.pattern = REGXCASE::ANY_SINGLE;
 
@@ -140,7 +151,7 @@ bool match_pattern(const std::string &input_line, const std::string &pattern){
     // match with first pattern that appears in the regex somewhere in the string
     parse_pattern_next(pattern_iter, re);
 
-    // if pattern does not start with ^ find an entry in the line
+    // if pattern does not start with ^ find an entry in the input
     if (!re.start_of_line){
 
         // std::cout << "finding entry" << std::endl;
@@ -154,11 +165,11 @@ bool match_pattern(const std::string &input_line, const std::string &pattern){
             
         }
 
-        // std::cout << "finding entry finished" << std::endl;
         if (input_str == std::end(input_line) && !entry_position)
             return false; 
     }
 
+    bool non_matching;
     while (result && input_str != std::end(input_line)){
 
         if (pattern_iter == std::end(pattern))
@@ -168,11 +179,21 @@ bool match_pattern(const std::string &input_line, const std::string &pattern){
 
         result &= check_regex_match(*input_str, re);
         ++input_str;
+    
+
+        
     }
 
     // input exhausted before pattern --> return false 
-    if (input_str == std::end(input_line) && pattern_iter != std::end(pattern))
-        return false; 
+    if (input_str == std::end(input_line) && pattern_iter != std::end(pattern)){
+
+        // get last pattern to check for $ 
+        parse_pattern_next(pattern_iter, re); 
+        if (re.end_of_line)
+            return true; 
+        
+        return false;
+    } 
     
     
     return result;

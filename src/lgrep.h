@@ -34,6 +34,7 @@ enum REGXCASE {
 
 	GROUPING,
 	START_OF_LINE,
+	END_OF_LINE, 
 
 };
 
@@ -44,6 +45,7 @@ struct regex {
 	REGXCASE pattern; 
 	bool negative_group;  
 	bool start_of_line; 
+	bool end_of_line; 
 
 }; 
 
@@ -53,7 +55,8 @@ void debug_regexcase(){
 			  << "ALPHA_ANY_SINGLE: " << REGXCASE::ALPHA_ANY_SINGLE << "\n"
 			  << "DIGIT_ANY_SINGLE: " << REGXCASE::DIGIT_ANY_SINGLE << "\n"
 			  << "GROUPING: " << REGXCASE::GROUPING << "\n" 
-			  << "START_OF_LINE: " << REGXCASE::START_OF_LINE << "\n" << 
+			  << "START_OF_LINE: " << REGXCASE::START_OF_LINE << "\n"  
+			  << "END_OF_LINE: " << REGXCASE::END_OF_LINE << "\n" <<
 	std::endl; 
 }
 
