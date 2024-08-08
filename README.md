@@ -6,8 +6,9 @@ A collection of command line tools for linux written in C/C++ for personal use a
 ## Current tools available 
 *(major works in progress marked with (\*), though some tools do not offer full functionality at the moment)*
 
-* icmsgpv6 (\*)
-  * chat application tunneling via icmp on ipv6  
+* grepl (\*)
+  * a simple grep tool for handling regex
+   
 * ipinfov1
   * get basic ip info from the kernel using interface addresses
 
