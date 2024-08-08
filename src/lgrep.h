@@ -5,8 +5,12 @@
 #include <string>
 #include <unordered_set>
 
+#define DEBUG 1
+
 typedef std::unordered_set<char> chr_set; 
 typedef std::unordered_set<char>::const_iterator chr_itr;
+
+typedef std::string::const_iterator str_itr; 
 
 void create_chr_set(chr_set& c_set, std::string& chars);
 
@@ -36,16 +40,23 @@ enum REGXCASE {
 	START_OF_LINE,
 	END_OF_LINE, 
 
+	ONE_OR_MORE,
+
 };
 
 struct regex {
 
 	chr_set char_set; 
 	std::string substr; 
-	REGXCASE pattern; 
-	bool negative_group;  
+	REGXCASE current_pattern; 
+	// REGXCASE last_pattern;
+	bool last_match_state; 
+	bool negative_group;
+
 	bool start_of_line; 
 	bool end_of_line; 
+
+	bool one_or_more; 
 
 }; 
 
@@ -56,7 +67,8 @@ void debug_regexcase(){
 			  << "DIGIT_ANY_SINGLE: " << REGXCASE::DIGIT_ANY_SINGLE << "\n"
 			  << "GROUPING: " << REGXCASE::GROUPING << "\n" 
 			  << "START_OF_LINE: " << REGXCASE::START_OF_LINE << "\n"  
-			  << "END_OF_LINE: " << REGXCASE::END_OF_LINE << "\n" <<
+			  << "END_OF_LINE: " << REGXCASE::END_OF_LINE << "\n" 
+			  << "ONE_OR_MORE: " << REGXCASE::ONE_OR_MORE << "\n" <<
 	std::endl; 
 }
 
