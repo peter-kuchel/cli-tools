@@ -9,6 +9,7 @@ void create_chr_set(chr_set &c_set, const std::string &chars){
 
 void init_regex(struct regex &re){
     re.one_or_more = false; 
+    // re.zero_or_one = false; 
 }
 
 void reset_regex(struct regex &re){
@@ -21,17 +22,17 @@ void reset_regex(struct regex &re){
 
 void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &re){
 
-    if (DEBUG){
-        std::cout << "building regex pattern" << std::endl; 
-        if (re.one_or_more)
-            std::cout << "one or more toggled" << std::endl;
-    }
+    
 
-    // keep state incase we successfully matched 1 or more last time
+    // keep state for these cases
     if (re.one_or_more)
         return; 
     
     reset_regex(re); 
+
+    if (DEBUG){
+        std::cout << "building regex pattern" << std::endl; 
+    }
 
     switch(re.current_pattern){
 
@@ -78,6 +79,9 @@ void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &
 
 void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex &re){
     
+    if (DEBUG)
+        std::cout << "-- Parsing next pattern --" << std::endl; 
+
     if (*pattern_iter == '\\'){
 
         ++pattern_iter;
@@ -94,10 +98,8 @@ void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex 
                 break;
         }
 
-    } else if (*pattern_iter == '+') { 
+    } else if (*pattern_iter == '+'){ 
 
-        // re.last_pattern = re.current_pattern; 
-        // re.current_pattern = REGXCASE::ONE_OR_MORE; 
         re.one_or_more = true; 
         
     } else if (*pattern_iter == '['){
@@ -110,7 +112,6 @@ void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex 
 
     } else if (*pattern_iter == '$'){
 
-        // std::cout << "END OF LINE" << std::endl;
         re.current_pattern = REGXCASE::END_OF_LINE; 
 
     } else if ( ALL_CHARS.find( *pattern_iter ) != ALL_CHARS.end() ){
@@ -123,7 +124,10 @@ void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex 
     }
 
     if (DEBUG){
-        std::cout << "got regex case: " << re.current_pattern << std::endl; 
+        if (re.one_or_more)
+            std::cout << "[toggled one or more]" << std::endl;
+        else 
+            std::cout << "got regex case: " << re.current_pattern << std::endl; 
     }
 
     build_regex_match(pattern_iter, re); 
@@ -148,9 +152,10 @@ bool check_regex_match(char c, struct regex &re){
         case REGXCASE::GROUPING:
             
             result = re.char_set.find(c) != re.char_set.end();
-            // std::cout << "result is: "<< result << std::endl; 
+
             if (re.negative_group) 
                 return !result; 
+
             return result; 
 
         case REGXCASE::NOT_RECOGNIZED:
@@ -162,10 +167,10 @@ bool check_regex_match(char c, struct regex &re){
 
 bool check_one_or_more(struct regex &re, str_itr &pattern_iter, str_itr &input_str){
 
-    if (re.one_or_more && !re.last_match_state){
+    if (re.one_or_more && !re.prev_matched){
 
             if (DEBUG){
-                std::cout << "exiting 1 or more" << std::endl; 
+                std::cout << "[Exiting from 1 or more]" << std::endl; 
             }
 
             re.one_or_more = false; 
@@ -173,9 +178,25 @@ bool check_one_or_more(struct regex &re, str_itr &pattern_iter, str_itr &input_s
             --input_str; 
 
             return true; 
-        }
+    }
 
     return false; 
+}
+
+bool check_optional(struct regex &re, str_itr &pattern_iter, str_itr &input_str, bool current_matched){
+
+    std::cout << "[Checking for optional]: " << std::endl;
+
+    if (*(pattern_iter) == '?'){
+
+        if ( !current_matched )
+            --input_str; 
+
+        ++pattern_iter; 
+        return true;
+    }
+
+    return false;  
 }
 
 bool match_pattern(const std::string &input_line, const std::string &pattern){
@@ -201,7 +222,7 @@ bool match_pattern(const std::string &input_line, const std::string &pattern){
             entry_position = check_regex_match(*input_str, re);
 
             if (DEBUG){
-                std::cout << "At: " << *input_str << " -- entry found:" << entry_position << std::endl;
+                std::cout << "At: " << *input_str << " -- entry found: " << entry_position << std::endl;
             } 
 
             ++input_str;
@@ -213,12 +234,12 @@ bool match_pattern(const std::string &input_line, const std::string &pattern){
             return false; 
 
         if (entry_position)
-            re.last_match_state = true; 
+            re.prev_matched = true; 
     }
 
     // continue matching
     
-    bool current_result;
+    bool current_matched, is_optional;
     while (end_result && input_str != input_end){
 
         if (pattern_iter == pattern_end)
@@ -230,25 +251,39 @@ bool match_pattern(const std::string &input_line, const std::string &pattern){
         
         if ( !check_one_or_more(re, pattern_iter, input_str) ) {
 
-            current_result = check_regex_match(*input_str, re);
+            current_matched = check_regex_match(*input_str, re);
 
+            if (DEBUG)
+                std::cout << "Matched? -- " << current_matched << std::endl; 
 
-            if (!re.one_or_more)
-                end_result &= current_result;
+            is_optional = check_optional(re, pattern_iter, input_str, current_matched);
 
-            re.last_match_state = current_result;
+            // issue is here
+            if (!re.one_or_more && !is_optional)
+                end_result &= current_matched;
+
+            re.prev_matched = current_matched;
 
             ++input_str;
         }
 
-        // check if one or more toggled while hitting the end of the string
-        if (input_str == input_end)
+        // check if anything toggled while hitting the end of the string
+        if (input_str == input_end){
+
+            if (DEBUG)
+                std::cout << "INPUT STRING FINISHED" << std::endl; 
+            
             check_one_or_more(re, pattern_iter, input_str);
-      
+
+        }
+             
     }
 
     // check if input exhausted before pattern
     if (input_str == input_end && pattern_iter != pattern_end){
+
+        if (DEBUG)
+            std::cout << "Input exhausted before pattern" << std::endl; 
 
         // get last pattern to check for $ 
         parse_pattern_next(pattern_iter, re);

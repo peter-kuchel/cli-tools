@@ -41,6 +41,7 @@ enum REGXCASE {
 	END_OF_LINE, 
 
 	ONE_OR_MORE,
+	ZERO_OR_ONE,
 
 };
 
@@ -49,8 +50,8 @@ struct regex {
 	chr_set char_set; 
 	std::string substr; 
 	REGXCASE current_pattern; 
-	// REGXCASE last_pattern;
-	bool last_match_state; 
+	
+	bool prev_matched; 
 	bool negative_group;
 
 	bool start_of_line; 
