@@ -18,6 +18,7 @@ void reset_regex(struct regex &re){
     re.negative_group = false;  
     re.start_of_line  = false; 
     re.end_of_line = false;
+    re.wildcard = false; 
 }
 
 void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &re){
@@ -68,6 +69,10 @@ void build_regex_match(std::string::const_iterator &pattern_iter, struct regex &
             re.end_of_line = true; 
             break;
 
+        case REGXCASE::WILDCARD:
+            re.wildcard = true;
+            break;
+
         default:
             if (DEBUG) std::cout << "AT DEFAULT" << std::endl; 
             break; 
@@ -97,6 +102,10 @@ void parse_pattern_next(std::string::const_iterator &pattern_iter, struct regex 
                 re.current_pattern = REGXCASE::NOT_RECOGNIZED;
                 break;
         }
+
+    } else if ( *pattern_iter == '.'){
+
+        re.current_pattern = REGXCASE::WILDCARD; 
 
     } else if (*pattern_iter == '+'){ 
 
@@ -144,6 +153,10 @@ bool check_regex_match(char c, struct regex &re){
 
     bool result; 
     switch (re.current_pattern){
+        
+        case REGXCASE::WILDCARD:
+            return true;
+
         case REGXCASE::ANY_SINGLE:
         case REGXCASE::ALPHA_ANY_SINGLE:
         case REGXCASE::DIGIT_ANY_SINGLE:
@@ -185,7 +198,8 @@ bool check_one_or_more(struct regex &re, str_itr &pattern_iter, str_itr &input_s
 
 bool check_optional(struct regex &re, str_itr &pattern_iter, str_itr &input_str, bool current_matched){
 
-    std::cout << "[Checking for optional]: " << std::endl;
+    if (DEBUG)
+        std::cout << "[Checking for optional]: " << std::endl;
 
     if (*(pattern_iter) == '?'){
 

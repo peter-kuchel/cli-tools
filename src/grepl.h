@@ -5,7 +5,7 @@
 #include <string>
 #include <unordered_set>
 
-#define DEBUG 1
+#define DEBUG 0
 
 typedef std::unordered_set<char> chr_set; 
 typedef std::unordered_set<char>::const_iterator chr_itr;
@@ -41,7 +41,7 @@ enum REGXCASE {
 	END_OF_LINE, 
 
 	ONE_OR_MORE,
-	ZERO_OR_ONE,
+	WILDCARD,
 
 };
 
@@ -58,6 +58,7 @@ struct regex {
 	bool end_of_line; 
 
 	bool one_or_more; 
+	bool wildcard; 
 
 }; 
 
