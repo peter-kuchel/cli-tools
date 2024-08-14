@@ -7,7 +7,17 @@ A collection of command line tools for linux written in C/C++ for personal use a
 *(major works in progress marked with (\*), though some tools do not offer full functionality at the moment)*
 
 * grepl (\*)
-  * a simple grep tool for handling regex
+  * a simple tool for handling regular expressions which supports the following patterns:
+      * c  - match any literal character c
+      * .  - wildcard, many any character
+      * [] and ^[] - match positive and negative character groups
+      * +  - match one or more occurances of the previous character
+      * ?  - match zero or one occurances of the previous character
+      * \w - match any alphabet character 
+      * \d - match any digit   
+      * ^  - match start of line
+      * $  - match end of line 
+  * supports combining patterns together
    
 * ipinfov1
   * get basic ip info from the kernel using interface addresses
