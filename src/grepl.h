@@ -4,6 +4,8 @@
 #include <iostream>
 #include <string>
 #include <unordered_set>
+#include <vector>
+#include <tuple>
 
 #define DEBUG 0
 
@@ -11,6 +13,7 @@ typedef std::unordered_set<char> chr_set;
 typedef std::unordered_set<char>::const_iterator chr_itr;
 
 typedef std::string::const_iterator str_itr; 
+
 
 void create_chr_set(chr_set& c_set, std::string& chars);
 
@@ -26,6 +29,7 @@ chr_set DIGITS;
 chr_set SPACES; 
 chr_set ALPHA_NUMERIC;  
 chr_set ALL_CHARS; 
+// chr_set WILDCARD_ALL; 
 
 enum REGXCASE {
 
@@ -42,23 +46,41 @@ enum REGXCASE {
 
 	ONE_OR_MORE,
 	WILDCARD,
+	ALTERNATION,
+
+	BEGIN_GROUP_CAP, 
+	END_GROUP_CAP,
 
 };
 
+struct capture_group {
+	str_itr group_start; 
+	int group_size; 
+	int last_group;
+	bool group_matched; 
+}; 
+
+
 struct regex {
 
-	chr_set char_set; 
-	std::string substr; 
+	chr_set char_set; 										// set of chars to capture
+	std::vector<capture_group> captured_groups; 			// captured groups from ()
+
+	// std::string substr; 
+
+	int current_group;										// index into current capture group, 0 is by default the input_str
 	REGXCASE current_pattern; 
 	
-	bool prev_matched; 
-	bool negative_group;
+	bool prev_matched; 										// flag if the previous pattern matched
+	bool negative_group;									// check for negative grouping with []
 
-	bool start_of_line; 
-	bool end_of_line; 
+	bool start_of_line; 									// if match occurs at the start of the line
+	bool end_of_line; 										// if match occurs at the end of the line 
 
-	bool one_or_more; 
-	bool wildcard; 
+	bool one_or_more; 										// flag to toggle for matching one or more 
+	bool capturing_group; 
+	bool begin_group_capture; 								// start of group capture
+	bool end_group_capture; 								// end of group capture (to return result)
 
 }; 
 
