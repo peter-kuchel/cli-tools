@@ -7,7 +7,7 @@
 #include <vector>
 #include <tuple>
 
-#define DEBUG 0
+#define DEBUG 1
 
 typedef std::unordered_set<char> chr_set; 
 typedef std::unordered_set<char>::const_iterator chr_itr;
@@ -60,6 +60,11 @@ struct capture_group {
 	bool group_matched; 
 }; 
 
+struct regex_input {
+	std::string pattern;
+	std::string input_line;
+};
+
 
 struct regex {
 
@@ -82,6 +87,8 @@ struct regex {
 	bool begin_group_capture; 								// start of group capture
 	bool end_group_capture; 								// end of group capture (to return result)
 
+	bool skip_char;											// skip matching char after parsing
+
 }; 
 
 void debug_regexcase(){
@@ -92,8 +99,12 @@ void debug_regexcase(){
 			  << "GROUPING: " << REGXCASE::GROUPING << "\n" 
 			  << "START_OF_LINE: " << REGXCASE::START_OF_LINE << "\n"  
 			  << "END_OF_LINE: " << REGXCASE::END_OF_LINE << "\n" 
-			  << "ONE_OR_MORE: " << REGXCASE::ONE_OR_MORE << "\n" <<
-	std::endl; 
+			  << "ONE_OR_MORE: " << REGXCASE::ONE_OR_MORE << "\n"
+			  << "WILDCARD: " << REGXCASE::WILDCARD << "\n"
+			  << "ALTERNATION: " << REGXCASE::ALTERNATION << "\n"
+			  << "BEGIN_GROUP_CAP: " << REGXCASE::BEGIN_GROUP_CAP << "\n" 
+			  << "END_GROUP_CAP: " << REGXCASE::END_GROUP_CAP << "\n"
+	<< std::endl; 
 }
 
 void debug_chr_set(struct regex &re){
