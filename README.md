@@ -13,7 +13,7 @@ A collection of command line tools for linux written in C/C++ for personal use a
       * [] and ^[] - match positive and negative character groups
       * +  - match one or more occurances of the previous character
       * ?  - match zero or one occurances of the previous character
-      * \w - match any alphabet character 
+      * \w - match any alphanumeric character 
       * \d - match any digit   
       * ^  - match start of line
       * $  - match end of line 
