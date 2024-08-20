@@ -11,7 +11,7 @@ A collection of command line tools for linux written in C/C++ for personal use a
       * c  - match any literal character c
       * .  - wildcard, match any character
       * [] and ^[] - match positive and negative character groups
-      * +  - match one or more occurances of the previous character
+      * \+  - match one or more occurances of the previous character
       * ?  - match zero or one occurances of the previous character
       * \w - match any alphanumeric character 
       * \d - match any digit   
