@@ -12,22 +12,63 @@ void init_regex(struct regex &re, struct regex_input &re_in){
     re.prev_matched = false; 
     re.skip_char = false; 
 
+    re.begin_group_capture = false;
+    re.end_group_capture = false; 
+
     // adding the input line just so it takes index 0 
-    re.captured_groups.push_back( {std::begin(re_in.input_line), (int)re_in.input_line.size(), 0, false} );
-    re.current_group = 0; 
-    re.capturing_group = false; 
+    re.captured_groups.push_back( {std::begin(re_in.pattern), (int)re_in.pattern.size()} );
+    // re.current_group = 0; 
+    // re.capturing_group = false; 
+
+    re.proc_stack.push_back( {std::begin(re_in.pattern), std::end(re_in.pattern), true} );
+    re.curr = re.proc_stack.size() - 1;
 }
 
 void reset_regex(struct regex &re){
-    // re.substr.clear();
+
     re.char_set.clear();
     re.negative_group = false;  
     re.start_of_line  = false; 
-    re.end_of_line = false;
-    // re.wildcard = false; 
+    re.end_of_line = false; 
 }
 
-void build_regex_match(str_itr &input_str, str_itr &pattern_iter, struct regex &re, struct regex_input &re_in){
+void build_alternation(str_itr &input_str, struct regex &re, struct regex_input &re_in){
+
+    bool current_group_match = re.proc_stack[re.curr].group_matched;
+
+    if (DEBUG)
+        std::cout << "Alternation needed: " << !current_group_match << std::endl; 
+
+    if ( !current_group_match ){   
+        
+        int i = 0; 
+        str_itr current_position = re.proc_stack[re.curr].pos; 
+
+        while ( (*(current_position + i) != '(' ) && (current_position + i) != std::begin(re_in.pattern) )
+                i--; 
+
+        if (input_str != std::begin(re_in.input_line))
+            input_str += (i + 1);             // plus one to account for '(' (possible bug here)
+
+        if (DEBUG)
+            std::cout << "[ ALTERNATION ]\nmoving input back: " << ( (i+1) * -1) << " spaces" << std::endl;
+
+        // re-try for the alternation
+        re.proc_stack[re.curr].group_matched = true;
+
+        if (DEBUG){
+            std::cout << "Input at: " << *input_str << std::endl;
+            std::cout << "Pattern at: " << *current_position << std::endl;
+        } 
+        
+    }
+
+    // possible bug with re.skip_char ? 
+    re.skip_char = true;
+    
+}
+
+void build_regex_match(str_itr &input_str, struct regex &re, struct regex_input &re_in){
 
     // keep state for these cases
     if (re.one_or_more)
@@ -41,8 +82,11 @@ void build_regex_match(str_itr &input_str, str_itr &pattern_iter, struct regex &
 
     switch(re.current_pattern){
 
+        case REGXCASE::WILDCARD:
+            break;
+
         case REGXCASE::ANY_SINGLE:
-            re.char_set.insert( *pattern_iter );
+            re.char_set.insert( *re.proc_stack[re.curr].pos );
             break; 
 
         case REGXCASE::ALPHA_ANY_SINGLE:
@@ -55,13 +99,13 @@ void build_regex_match(str_itr &input_str, str_itr &pattern_iter, struct regex &
 
         case REGXCASE::GROUPING:
             
-            if (*(pattern_iter + 1) == '^' && *pattern_iter == '['){
+            if (*(re.proc_stack[re.curr].pos + 1) == '^' && *(re.proc_stack[re.curr].pos) == '['){
                 re.negative_group = true;
-                ++pattern_iter; 
+                ++re.proc_stack[re.curr].pos; 
             } 
                     
-            while (*(++pattern_iter) != ']')
-                re.char_set.insert( *pattern_iter );
+            while (*(++re.proc_stack[re.curr].pos) != ']')
+                re.char_set.insert( *(re.proc_stack[re.curr].pos) );
 
             break; 
 
@@ -73,50 +117,19 @@ void build_regex_match(str_itr &input_str, str_itr &pattern_iter, struct regex &
             re.end_of_line = true; 
             break;
 
-        case REGXCASE::WILDCARD:
-            // re.wildcard = true;
-            break;
-
         case REGXCASE::BEGIN_GROUP_CAP:
             re.begin_group_capture = true; 
             break;
 
-        case REGXCASE::END_GROUP_CAP:
-            re.end_group_capture = true; 
-            break;
+        // case REGXCASE::END_GROUP_CAP:
+        //     re.end_group_capture = true; 
+        //     break;
 
         case REGXCASE::ALTERNATION:
 
             // assume alternation is either between () or seperates the entire pattern
-            // get current group if there is one (that isn't already 0)
-            {
-                bool current_group_match = re.captured_groups[re.current_group].group_matched;
-
-                if (DEBUG)
-                    std::cout << "Alternation needed: " << !current_group_match << std::endl; 
-
-                if ( !current_group_match ){   
-                    
-                    int i = 0; 
-                    while ( (*(pattern_iter + i) != '(' ) && (pattern_iter + i) != std::begin(re_in.pattern) )
-                            i--; 
-
-                    if (input_str != std::begin(re_in.input_line))
-                        input_str += (i + 1);             // plus one to account for '(' (possible bug here)
-
-                    if (DEBUG)
-                        std::cout << "[ ALTERNATION ]\nmoving input back: " << ( (i+1) * -1) << " spaces" << std::endl;
-
-                    // re-try for the alternation
-                    re.captured_groups[re.current_group].group_matched = true;
-                    
-                }
-            }
-            re.skip_char = true;
-            if (DEBUG){
-                std::cout << "Input at: " << *input_str << std::endl;
-                std::cout << "Pattern at: " << *pattern_iter << std::endl;
-            } 
+            build_alternation(input_str, re, re_in);
+            
             break; 
 
         default:
@@ -125,22 +138,72 @@ void build_regex_match(str_itr &input_str, str_itr &pattern_iter, struct regex &
     }
 
     
-    ++pattern_iter; 
+    // ++pattern_iter; 
+    ++re.proc_stack[re.curr].pos;
 }
 
-void parse_pattern_next(str_itr &input_str, str_itr &pattern_iter, struct regex &re, struct regex_input &re_in){
+bool parse_group_backreference(struct regex &re){
+
+    char p = *(re.proc_stack[re.curr].pos); 
+    if ( p <= '9' && p >= '0'){
+
+        if ( !( p <= re.captured_groups.size()) )
+            return false; 
+
+        // possible bug if there are more than 9 backreferences
+        int group_ref = p - '0';
+
+        struct capture_group g = re.captured_groups[group_ref];
+
+        re.proc_stack.push_back( {g.group_start, g.group_start + g.group_size} );
+        re.curr = group_ref; 
+
+        re.current_pattern = REGXCASE::SINGLE_BACKREF;
+
+        return true; 
+    }
+    return false; 
+}
+
+void parse_new_group(struct regex &re){
+    int i = 1; 
+
+    str_itr current_position = re.proc_stack[re.curr].pos; 
+
+        // capture where the group is at
+    while (*(current_position + i) != ')')
+        i++; 
+
+    // should be ordered by when they were push which will correspond to back reference
+    re.captured_groups.push_back( { current_position, i } );
+
+    // NEED TO ALSO MOVE THE ITERATOR OF THE CURRENT GROUP WHICH HAS THIS GROUP FOUND
+
+    re.current_pattern = REGXCASE::BEGIN_GROUP_CAP; 
+
+    re.proc_stack.push_back( {current_position + 1, current_position + i} );
+    re.curr = re.proc_stack.size() - 1;
+
+    if (DEBUG){
+        std::cout << "[New Group Added]: " << re.captured_groups.size() - 1 << std::endl; 
+        std::cout<< "Current group being processed is: " << re.curr << std::endl;
+    }
+}
+
+void parse_next_pattern(str_itr &input_str, struct regex &re, struct regex_input &re_in){
     
     if (DEBUG)
         std::cout << "-- Parsing next pattern --" << std::endl; 
 
-    // // if alternation
-    // if (re.skip_char)
-    //     re.skip_char = false;
+    str_itr pattern_pos = re.proc_stack[re.curr].pos;
 
-    if (*pattern_iter == '\\'){
+    if (DEBUG)
+        std::cout << "Next in pattern: " << *pattern_pos << std::endl; 
 
-        ++pattern_iter;
-        switch(*pattern_iter){
+    if (*pattern_pos == '\\'){
+
+        ++pattern_pos; ++re.proc_stack[re.curr].pos;
+        switch(*pattern_pos){
 
             case 'w':
                 re.current_pattern = REGXCASE::ALPHA_ANY_SINGLE;
@@ -151,59 +214,49 @@ void parse_pattern_next(str_itr &input_str, str_itr &pattern_iter, struct regex 
 
             // need to check for escape characters too 
             default: 
-                re.current_pattern = REGXCASE::NOT_RECOGNIZED;
+
+                if ( !parse_group_backreference(re) )
+                    re.current_pattern = REGXCASE::NOT_RECOGNIZED;
+
                 break;
         }
 
     // capture groups
-    } else if ( *pattern_iter == '|'){
+    } else if ( *pattern_pos == '|'){
 
         re.current_pattern = REGXCASE::ALTERNATION;
 
-    } else if ( *pattern_iter == '(' ){
+    } else if ( *pattern_pos == '(' ){
         
-        int i = 1; 
+        parse_new_group( re );
 
-        // capture where the group is at
-        while (*(pattern_iter + i) != ')')
-            i++; 
+    } 
+    // else if ( *pattern_iter == ')'){
 
-        re.captured_groups.push_back( { pattern_iter, i, re.current_group, true} );
-        
-        // get current group pos in vector
-        re.current_group = re.captured_groups.size() - 1;
+    //     re.current_pattern = REGXCASE::END_GROUP_CAP; 
 
-        re.current_pattern = REGXCASE::BEGIN_GROUP_CAP; 
-        re.capturing_group = true; 
-
-        if (DEBUG)
-            std::cout<< "[New Group Added] current group is: " << re.current_group << std::endl;
-
-    } else if ( *pattern_iter == ')'){
-
-        re.current_pattern = REGXCASE::END_GROUP_CAP; 
-
-    } else if ( *pattern_iter == '.'){
+    // } 
+    else if ( *pattern_pos == '.'){
 
         re.current_pattern = REGXCASE::WILDCARD; 
 
-    } else if (*pattern_iter == '+'){ 
+    } else if (*pattern_pos == '+'){ 
 
         re.one_or_more = true; 
         
-    } else if (*pattern_iter == '['){
+    } else if (*pattern_pos == '['){
 
         re.current_pattern = REGXCASE::GROUPING; 
 
-    } else if (*pattern_iter == '^'){
+    } else if (*pattern_pos == '^'){
 
         re.current_pattern = REGXCASE::START_OF_LINE;
 
-    } else if (*pattern_iter == '$'){
+    } else if (*pattern_pos == '$'){
 
         re.current_pattern = REGXCASE::END_OF_LINE; 
 
-    } else if ( ALL_CHARS.find( *pattern_iter ) != ALL_CHARS.end() ){
+    } else if ( ALL_CHARS.find( *pattern_pos ) != ALL_CHARS.end() ){
 
         re.current_pattern = REGXCASE::ANY_SINGLE;
 
@@ -219,7 +272,7 @@ void parse_pattern_next(str_itr &input_str, str_itr &pattern_iter, struct regex 
             std::cout << "got regex case: " << re.current_pattern << std::endl; 
     }
 
-    build_regex_match(input_str, pattern_iter, re, re_in); 
+    build_regex_match(input_str, re, re_in); 
     
 }
 
@@ -278,7 +331,7 @@ bool check_end_group_capture(struct regex &re){
     return false; 
 }
 
-bool check_one_or_more(struct regex &re, str_itr &pattern_iter, str_itr &input_str){
+bool check_one_or_more(struct regex &re, str_itr &input_str){
 
     if (re.one_or_more && !re.prev_matched){
 
@@ -287,7 +340,7 @@ bool check_one_or_more(struct regex &re, str_itr &pattern_iter, str_itr &input_s
             }
 
             re.one_or_more = false; 
-            ++pattern_iter;
+            ++re.proc_stack[re.curr].pos;
             --input_str; 
 
             return true; 
@@ -296,32 +349,32 @@ bool check_one_or_more(struct regex &re, str_itr &pattern_iter, str_itr &input_s
     return false; 
 }
 
-bool check_optional(struct regex &re, str_itr &pattern_iter, str_itr &input_str, bool current_matched){
+bool check_optional(struct regex &re, str_itr &input_str, bool current_matched){
 
     if (DEBUG)
         std::cout << "[Checking for optional]: " << std::endl;
 
-    if (*(pattern_iter) == '?'){
+    if (*(re.proc_stack[re.curr].pos) == '?'){
 
         // might be some issues here when checking for a group
         if ( !current_matched )
             --input_str; 
 
-        ++pattern_iter; 
+        ++re.proc_stack[re.curr].pos; 
         return true;
     }
 
     return false;  
 }
 
-bool check_for_alternation(str_itr &pattern_iter, str_itr &pattern_end){
+bool check_for_alternation(struct regex &re){
 
-    while (pattern_iter != pattern_end){
+    while (re.proc_stack[re.curr].pos != re.proc_stack[re.curr].group_end){
 
-        if ( *pattern_iter == '|' )
+        if ( *(re.proc_stack[re.curr].pos) == '|' )
             return true; 
 
-        ++pattern_iter; 
+        ++re.proc_stack[re.curr].pos; 
     }
 
     return false; 
@@ -340,6 +393,15 @@ bool check_skip_char(struct regex &re){
     return false;
 }
 
+bool check_current_group_finished(struct regex &re){
+
+
+    if ( re.proc_stack[re.curr].pos == re.proc_stack[re.curr].group_end )
+        return true; 
+
+    return false; 
+}
+
 
 bool match_pattern(struct regex_input &re_in){
 
@@ -347,22 +409,30 @@ bool match_pattern(struct regex_input &re_in){
     regex re;  
     init_regex(re, re_in);
 
-    str_itr pattern_iter = std::begin(re_in.pattern);
-    str_itr input_str = std::begin(re_in.input_line); 
+    if (DEBUG){
+        std::cout << "\nInput string: " << re_in.input_line << std::endl; 
+        std::cout << "Pattern string: " << re_in.pattern << "\n" << std::endl; 
+    }
 
+    // str_itr pattern_iter = std::begin(re_in.pattern);
+
+    str_itr input_str = std::begin(re_in.input_line); 
     str_itr input_end = std::end(re_in.input_line);
-    str_itr pattern_end = std::end(re_in.pattern);
+
+    // str_itr pattern_end = std::end(re_in.pattern);
 
     // match with first pattern that appears in the regex somewhere in the string
-    parse_pattern_next(input_str, pattern_iter, re, re_in);
+
+    do {
+
+        parse_next_pattern(input_str, re, re_in);
+
+    } while ( check_begin_group_capture(re) );
+    
 
     
     // if pattern does not start with ^ find an entry point in the input
     if (!re.start_of_line){
-
-        // if first parsed pattern is beginning of a group --> parse next pattern 
-        if ( check_begin_group_capture(re) )
-            parse_pattern_next(input_str, pattern_iter, re, re_in);
          
         while ( input_str != input_end){
 
@@ -378,11 +448,14 @@ bool match_pattern(struct regex_input &re_in){
         }
 
         if (input_str == input_end && !entry_position){
+
             if (DEBUG)
                 std::cout << "{ No entry point found }" << std::endl; 
             // check if next char would be alternation
-            if ( !check_for_alternation(pattern_iter, pattern_end) ){
+
+            if ( !check_for_alternation(re) ){
                 return false; 
+
             } else {
                 input_str = std::begin(re_in.input_line);
             }
@@ -397,49 +470,70 @@ bool match_pattern(struct regex_input &re_in){
     std::cout << "[checking rest of string]" << std::endl; 
     
     bool current_matched, is_optional;
+
+    // str_itr pattern_iter; 
     while (end_result && input_str != input_end){
 
-        if (pattern_iter == pattern_end){
+        // check if current processing group is finished 
+        if (re.proc_stack[re.curr].pos == re.proc_stack[re.curr].group_end){
 
             if (DEBUG)
-                std::cout << " --[pattern is finished]-- " << std::endl; 
+                std::cout << " --[ current pattern is finished ]-- " << std::endl; 
 
-            break;
+            end_result &= re.proc_stack[re.curr].group_matched; 
+
+            if (DEBUG)
+                std::cout << " group result was: " << re.proc_stack[re.curr].group_matched << std::endl; 
+
+            if (!end_result) 
+                break; 
+
+            re.proc_stack.pop_back();
+
+            // if nothing in the process stack then it is finished
+            if (re.proc_stack.size() == 0)
+                break;
+
+            re.curr = re.proc_stack.size() - 1;
+
+
         } 
 
-        parse_pattern_next(input_str, pattern_iter, re, re_in);
+        parse_next_pattern(input_str, re, re_in);
 
         // * check for one or more and if failed to match for previous
         // * if beginning of a group capture then skip over '(' and goto next char
         
         if ( ! check_begin_group_capture(re) &&
-             ! check_one_or_more(re, pattern_iter, input_str) &&
+             ! check_one_or_more(re, input_str) &&
              ! check_skip_char(re)
         ) {
 
-            if (DEBUG)
-                std::cout << "checking for end of capture group" << std::endl;  
+            // if (DEBUG)
+            //     std::cout << "checking for end of capture group" << std::endl;  
 
-            if ( !check_end_group_capture(re) ){
+            // if ( !check_end_group_capture(re) ){
 
-                if (DEBUG)
-                    std::cout << "checking for match" << std::endl;
+            //     if (DEBUG)
+            //         std::cout << "checking for match" << std::endl;
 
-                current_matched = check_regex_match(*input_str, re);
+            //     current_matched = check_regex_match(*input_str, re);
 
-            } else {
-                struct capture_group cap_g = re.captured_groups[re.current_group]; 
-                current_matched = cap_g.group_matched;
-                re.current_group = cap_g.last_group; 
+            // } else {
+            //     struct capture_group cap_g = re.captured_groups[re.current_group]; 
+            //     current_matched = cap_g.group_matched;
+            //     // re.current_group = cap_g.last_group; 
 
-                if (re.current_group == 0)
-                    re.capturing_group= false; 
-            }
+            //     if (re.current_group == 0)
+            //         re.capturing_group= false; 
+            // }
+
+            current_matched = check_regex_match(*input_str, re);
 
             if (DEBUG)
                 std::cout << "Matched? -- " << current_matched << std::endl; 
 
-            is_optional = check_optional(re, pattern_iter, input_str, current_matched);
+            is_optional = check_optional(re, input_str, current_matched);
 
             if (!re.one_or_more && !is_optional){
 
@@ -447,16 +541,18 @@ bool match_pattern(struct regex_input &re_in){
                     std::cout << "not optional or one or more" << std::endl; 
 
 
-                if (re.capturing_group){
+                // if (re.capturing_group){
 
-                    re.captured_groups[re.current_group].group_matched &= current_matched;
+                //     re.captured_groups[re.current_group].group_matched &= current_matched;
 
-                    if (DEBUG)
-                        std::cout << "Current group match status: " << re.captured_groups[re.current_group].group_matched << std::endl; 
+                //     if (DEBUG)
+                //         std::cout << "Current group match status: " << re.captured_groups[re.current_group].group_matched << std::endl; 
                 
-                } else {
-                    end_result &= current_matched;
-                }
+                // } else {
+                //     end_result &= current_matched;
+                // }
+
+                re.proc_stack[re.curr].group_matched &= current_matched;
             }
                 
             re.prev_matched = current_matched;
@@ -471,43 +567,60 @@ bool match_pattern(struct regex_input &re_in){
             if (DEBUG)
                 std::cout << "INPUT STRING FINISHED" << std::endl; 
             
-            check_one_or_more(re, pattern_iter, input_str);
+            check_one_or_more(re, input_str);
 
             // check if next char is alternation 
-            if ( *(pattern_iter) == '|'){
+            if ( *(re.proc_stack[re.curr].pos) == '|'){
 
-                bool group_match = re.captured_groups[re.current_group].group_matched;
-                if (re.current_group != 0 && !group_match){
+                bool group_match = re.proc_stack[re.curr].group_matched;
+
+                if (re.proc_stack.size() -1 != 0 && !group_match){
+
                     if (DEBUG)
                         std::cout << "ALTERNATION TO BE APPLIED" << std::endl; 
-                    parse_pattern_next(input_str, pattern_iter, re, re_in);
+
+                    parse_next_pattern(input_str, re, re_in);
                     re.skip_char = false;
-                }
-
-                
+                }  
             }
-
-        }
-             
+        }      
     }
 
-    // check if input exhausted before pattern
-    if (input_str == input_end && pattern_iter != pattern_end){
+    // check if input exhausted before pattern (since process stack has 2 or more groups)
+    if (input_str == input_end && re.proc_stack.size() -1 != 0){
 
-        if (DEBUG)
-            std::cout << "Input exhausted before pattern" << std::endl; 
+        if (DEBUG){
+            std::cout << "Input exhausted before pattern -- proc stack size > 1" << std::endl; 
+        }
 
         // get last pattern to check for $ 
-        parse_pattern_next(input_str, pattern_iter, re, re_in);
+        parse_next_pattern(input_str, re, re_in);
 
-        // possible bug with the alternation case
+        // possible bug with the alternation case (?)
         if (re.end_of_line || re.current_pattern == REGXCASE::ALTERNATION)
             end_result &= true; 
         else if (re.end_group_capture)
-            end_result &= re.captured_groups[re.current_group].group_matched;
+            end_result &= re.proc_stack[re.curr].group_matched;
         else 
-            end_result &= false; 
+            end_result &= false;
+
     } 
+
+    // if input was exhausted and last pattern group hasn't finished
+    else if (input_str == input_end && re.proc_stack.size() == 1 ){
+
+        if (DEBUG){
+            std::cout << "Input exhausted before pattern -- last proc unfinished" << std::endl; 
+        }
+        bool proc_fini = check_current_group_finished(re); 
+
+        if (DEBUG)
+            std::cout << "Finished? : " << proc_fini << std::endl; 
+        if ( proc_fini )
+            end_result &= re.proc_stack[re.curr].group_matched;
+        else
+            end_result &= false; 
+    }
     
     
     return end_result;

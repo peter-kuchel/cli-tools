@@ -51,13 +51,15 @@ enum REGXCASE {
 	BEGIN_GROUP_CAP, 
 	END_GROUP_CAP,
 
+	SINGLE_BACKREF, 
+
 };
 
 struct capture_group {
 	str_itr group_start; 
 	int group_size; 
-	int last_group;
-	bool group_matched; 
+	// int last_group;
+	// bool group_matched; 
 }; 
 
 struct regex_input {
@@ -65,15 +67,22 @@ struct regex_input {
 	std::string input_line;
 };
 
+struct process_group {
+
+	str_itr pos; 
+	str_itr group_end; 
+
+	bool group_matched;
+};
+
 
 struct regex {
 
 	chr_set char_set; 										// set of chars to capture
-	std::vector<capture_group> captured_groups; 			// captured groups from ()
+	std::vector<capture_group> captured_groups; 			// captured groups from (), so to be re-used from back references 
+	std::vector<process_group> proc_stack;				// stack to determine which group to be processing
 
-	// std::string substr; 
-
-	int current_group;										// index into current capture group, 0 is by default the input_str
+	int curr;												// index into current group in the process stack, 0 is by default the input_str
 	REGXCASE current_pattern; 
 	
 	bool prev_matched; 										// flag if the previous pattern matched
@@ -83,7 +92,7 @@ struct regex {
 	bool end_of_line; 										// if match occurs at the end of the line 
 
 	bool one_or_more; 										// flag to toggle for matching one or more 
-	bool capturing_group; 
+	// bool capturing_group; 
 	bool begin_group_capture; 								// start of group capture
 	bool end_group_capture; 								// end of group capture (to return result)
 
