@@ -7,7 +7,7 @@
 #include <vector>
 #include <tuple>
 
-#define DEBUG 1
+#define DEBUG 0
 
 typedef std::unordered_set<char> chr_set; 
 typedef std::unordered_set<char>::const_iterator chr_itr;
@@ -22,7 +22,7 @@ const std::string CHAR_LOWER = "abcdefghijklmnopqrstuvwxyz";
 const std::string CHAR_DIGITS = "0123456789";
 const std::string CHAR_SPACE = " \t\n\r";
 
-const std::string CHAR_NON_SPEC = "_- ";
+const std::string CHAR_NON_SPEC = "_- ,";
 const std::string CHAR_ALL_SPEC = "!@#$%^&*()-=+{}[]|;:\'\"\\.,?/`~><";
 
 chr_set DIGITS;
@@ -97,6 +97,7 @@ struct regex {
 	bool end_group_capture; 								// end of group capture (to return result)
 
 	bool skip_char;											// skip matching char after parsing
+	bool skip_iter; 										// skip iterating for backreferences  
 
 }; 
 
