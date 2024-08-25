@@ -7,7 +7,7 @@
 #include <vector>
 #include <tuple>
 
-#define DEBUG 0
+#define DEBUG 1
 
 typedef std::unordered_set<char> chr_set; 
 typedef std::unordered_set<char>::const_iterator chr_itr;

@@ -61,4 +61,5 @@ kcrypto:
 lines:
 	$(CXX) $(CPPFLAGS) $(SRC_DIR)/lines.cpp -o $(BIN_DIR)/lines 
 
-
+grepl:
+	$(CXX) $(CPPFLAGS) src/grepl.cc -o bin/grepl
