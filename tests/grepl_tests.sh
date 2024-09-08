@@ -12,6 +12,8 @@ GREPL_BIN='./bin/grepl'
 MATCH_FOUND="match found"
 MATCH_NOT_FOUND="match NOT found"
 
+# check_match <input str> <pattern> <expected result>
+
 check_match()
 {
 
@@ -20,9 +22,11 @@ check_match()
 	
 	eval exp="$3"
 
-	echo "echo -n" $str "|" $GREPL_BIN "-E" $pat
+	echo "echo -n \""$str"\" |" $GREPL_BIN "-E \""$pat"\""
 
 	res=$(echo -n "$str"| $GREPL_BIN -E "$pat")
+
+	echo $res
 
 	printf "Expected: " && printf "${exp}" && printf " | got: " && printf "${res}\n"
 
@@ -52,34 +56,39 @@ check_match()
 
 # echo $RESULT
 
-# echo -n "3 red squares and 3 red circles" | ./your_program.sh -E "(\d+) (\w+) squares and \1 \2 circles"
-# echo -n "3 red squares and 4 red circles" | ./your_program.sh -E "(\d+) (\w+) squares and \1 \2 circles"
+echo "[=== Code Crafter Tests ===]"
+echo ""
 
-# check_match "$RESULT" "$MATCH_NOT_FOUND"
-
-# echo -n "grep 101 is doing grep 101 times" | $GREPL_BIN -E "(\w\w\w\w \d\d\d) is doing \1 times"
-# echo -n "$?! 101 is doing $?! 101 times" | $GREPL_BIN -E "(\w\w\w \d\d\d) is doing \1 times"
-# echo -n "grep yes is doing grep yes times" | $GREPL_BIN -E "(\w\w\w\w \d\d\d) is doing \1 times"
-# echo -n "abcd is abcd, not efg" | $GREPL_BIN -E "([abcd]+) is \1, not [^xyz]+"
-# echo -n "efgh is efgh, not efg" | $GREPL_BIN -E "([abcd]+) is \1, not [^xyz]+"
-# echo -n "abcd is abcd, not xyz" | $GREPL_BIN -E "([abcd]+) is \1, not [^xyz]+"
-# echo -n "this starts and ends with this" | $GREPL_BIN -E "^(\w+) starts and ends with \1$"
-# echo -n "that starts and ends with this" | $GREPL_BIN -E "^(this) starts and ends with \1$"
-# echo -n "this starts and ends with this?" | $GREPL_BIN -E "^(this) starts and ends with \1$"
-# echo -n "once a dreaaamer, always a dreaaamer" | $GREPL_BIN -E "once a (drea+mer), alwaysz? a \1"
-# echo -n "once a dremer, always a dreaaamer" | $GREPL_BIN -E "once a (drea+mer), alwaysz? a \1"
-# echo -n "once a dreaaamer, alwayszzz a dreaaamer" | $GREPL_BIN -E "once a (drea+mer), alwaysz? a \1"
-# echo -n "bugs here and bugs there" | $GREPL_BIN -E "(b..s|c..e) here and \1 there"
-# echo -n "bugz here and bugs there" | $GREPL_BIN -E "(b..s|c..e) here and \1 there"
+echo -n "3 red squares and 3 red circles" | ./bin/grepl -E "(\d+) (\w+) squares and \1 \2 circles"
 
 
-# check_match <input str> <pattern> <expected result>
+echo "---[ Multiple Backreferences tests ]---"
+check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_FOUND}"
+check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_NOT_FOUND}"
+
+
+echo "---[ Single Backreferences tests ]---"
+check_match "grep 101 is doing grep 101 times" "(\w\w\w\w \d\d\d) is doing \1 times" "\${MATCH_FOUND}"
+check_match "\$?! 101 is doing \$?! 101 times" "(\w\w\w \d\d\d) is doing \1 times" "\${MATCH_NOT_FOUND}"
+check_match "grep yes is doing grep yes times" "(\w\w\w\w \d\d\d) is doing \1 times" "\${MATCH_NOT_FOUND}"
+check_match "abcd is abcd, not efg" "([abcd]+) is \1, not [^xyz]+" "\${MATCH_FOUND}"
+check_match "efgh is efgh, not efg" "([abcd]+) is \1, not [^xyz]+" "\${MATCH_NOT_FOUND}"
+check_match "abcd is abcd, not xyz" "([abcd]+) is \1, not [^xyz]+" "\${MATCH_NOT_FOUND}"
+check_match "this starts and ends with this" "^(\w+) starts and ends with \1$" "\${MATCH_FOUND}"
+check_match "that starts and ends with this" "^(this) starts and ends with \1$" "\${MATCH_NOT_FOUND}"
+check_match "this starts and ends with this?" "^(this) starts and ends with \1$" "\${MATCH_NOT_FOUND}"
+check_match "once a dreaaamer, always a dreaaamer" "once a (drea+mer), alwaysz? a \1" "\${MATCH_FOUND}"
+check_match "once a dremer, always a dreaaamer" "once a (drea+mer), alwaysz? a \1" "\${MATCH_NOT_FOUND}"
+check_match "once a dreaaamer, alwayszzz a dreaaamer" "once a (drea+mer), alwaysz? a \1" "\${MATCH_NOT_FOUND}"
+check_match "bugs here and bugs there" "(b..s|c..e) here and \1 there" "\${MATCH_FOUND}"
+check_match "bugz here and bugs there" "(b..s|c..e) here and \1 there" "\${MATCH_NOT_FOUND}"
 
 
 echo "---[ Alternation tests ]---"
 check_match "a cat" "a (cat|dog)" "\${MATCH_FOUND}"
 check_match "a dog" "a (cat|dog)" "\${MATCH_FOUND}"
 check_match "a cow" "a (cat|dog)" "\${MATCH_NOT_FOUND}"
+
 
 echo "---[ Wildcard tests ]---"
 check_match "cat" "c.t" "\${MATCH_FOUND}"
