@@ -41,9 +41,6 @@ check_match()
 make mk-bin-dir grepl
 echo ""
 
-echo "[=== Custom Tests ===]"
-
-
 echo "[=== Code Crafter Tests ===]"
 echo ""
 
@@ -51,8 +48,8 @@ echo ""
 
 
 # echo "---[ Multiple Backreferences tests ]---"
-# check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_FOUND}"
-# check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_NOT_FOUND}"
+# check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \1 \2 circles" "\${MATCH_FOUND}"
+# check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \1 \2 circles" "\${MATCH_NOT_FOUND}"
 
 
 echo "---[ Single Backreferences tests ]---"
@@ -129,5 +126,7 @@ echo "---[ Match character literal tests ]---"
 check_match "dog" "d" "\${MATCH_FOUND}"
 check_match "dog" "f" "\${MATCH_NOT_FOUND}"
 
+echo ""
+echo "[=== Custom Tests ===]"
 
 echo "[=== All Tests Passed! ===]"

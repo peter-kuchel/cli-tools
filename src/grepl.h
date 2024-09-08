@@ -7,7 +7,7 @@
 #include <vector>
 #include <tuple>
 
-#define DEBUG 1
+#define DEBUG 0
 
 typedef std::unordered_set<char> chr_set; 
 typedef std::unordered_set<char>::const_iterator chr_itr;
@@ -53,6 +53,10 @@ enum REGXCASE {
 
 	SINGLE_BACKREF, 
 
+};
+
+struct return_status {
+	bool result; 
 };
 
 struct capture_group {
