@@ -4,7 +4,6 @@ void create_chr_set(chr_set &c_set, const std::string &chars){
 
     for (auto c = std::begin(chars); c != std::end(chars); ++c)
         c_set.insert(*c); 
-    
 }
 
 void init_regex(struct regex &re, struct regex_input &re_in){
@@ -61,7 +60,6 @@ void build_alternation(str_itr &input_str, struct regex &re, struct regex_input 
             std::cout << "Input at: " << *input_str << std::endl;
             std::cout << "Pattern at: " << *current_position << std::endl;
         } 
-        
     } 
 
     // else exit group if matched and return to next group
@@ -78,7 +76,6 @@ void build_alternation(str_itr &input_str, struct regex &re, struct regex_input 
             --re.proc_stack[re.curr].pos;   // to cancel out the inc coming up
         
         }
-    
     }
 
     // possible bug with re.skip_char ? 
@@ -168,11 +165,6 @@ void build_regex_match(str_itr &input_str, struct regex &re, struct regex_input 
 bool parse_group_backreference(struct regex &re){
 
     char p = *(re.proc_stack[re.curr].pos); 
-
-    // if (DEBUG){
-    //     std::cout << "backref number: " << p << std::endl; 
-    //     std::cout << "in upper lim: " << (p <= '9') << " , in lower lim: " << (p >= '0') << std::endl; 
-    // }
 
     if ( p <= '9' && p >= '0'){
 
@@ -276,13 +268,11 @@ void parse_next_pattern(str_itr &input_str, struct regex &re, struct regex_input
         
         parse_new_group( re );
 
-    } 
-    else if ( *pattern_pos == ')'){
+    } else if ( *pattern_pos == ')'){
 
         re.current_pattern = REGXCASE::END_GROUP_CAP; 
 
-    } 
-    else if ( *pattern_pos == '.'){
+    } else if ( *pattern_pos == '.'){
 
         re.current_pattern = REGXCASE::WILDCARD; 
 
@@ -319,7 +309,6 @@ void parse_next_pattern(str_itr &input_str, struct regex &re, struct regex_input
     }
 
     build_regex_match(input_str, re, re_in); 
-    
 }
 
 bool check_regex_match(char c, struct regex &re){
@@ -329,7 +318,6 @@ bool check_regex_match(char c, struct regex &re){
         debug_chr_set(re);
     }
     
-
     bool result; 
     switch (re.current_pattern){
         case REGXCASE::WILDCARD:
@@ -360,7 +348,7 @@ bool check_begin_group_capture(struct regex &re){
     if (re.begin_group_capture){
 
         if (DEBUG)
-            std::cout << "[Beginning og group capture]" << std::endl; 
+            std::cout << "[Beginning of group capture]" << std::endl; 
 
         re.begin_group_capture = false; 
         return true;
@@ -378,41 +366,6 @@ bool check_current_group_finished(struct regex &re){
     else if (last_char == '+' || last_char == '$')
         return true; 
     return false; 
-}
-
-bool check_end_of_group(struct regex &re){
-
-    if (DEBUG)
-        std::cout << "[ checking end of group ]" << std::endl;  
-
-    do {
-        
-        if (DEBUG)
-            std::cout << "next iter" << std::endl;
-
-        bool group_finished = check_current_group_finished(re);
-
-        if (DEBUG && !group_finished)
-            std::cout << "next group char: " << *re.proc_stack[re.curr].pos << std::endl; 
-
-        if ( group_finished || *re.proc_stack[re.curr].pos == ')' ){
-
-            re.proc_stack.pop_back();
-
-            if (re.proc_stack.size() == 0) 
-                break; 
-
-            re.curr = re.proc_stack.size() - 1; 
-
-        // one or more matching means it has ended
-        } else {
-
-            return false;
-        }
-
-    } while (1); 
-
-    return true; 
 }
 
 bool check_one_or_more(struct regex &re, str_itr &input_str){
@@ -581,7 +534,6 @@ bool match_pattern(struct regex_input &re_in){
             re.prev_matched = true;
             ++input_str;
         }
-             
     }
 
     // continue matching
@@ -658,7 +610,6 @@ bool match_pattern(struct regex_input &re_in){
         }      
     }
 
-
     bool last_group_match = re.proc_stack[re.curr].group_matched;
 
     if (DEBUG)
@@ -687,11 +638,6 @@ bool match_pattern(struct regex_input &re_in){
         // possible bug with the alternation case (?)
         if (re.end_of_line || re.current_pattern == REGXCASE::ALTERNATION)
             end_result.result &= true; 
-
-        // check if reached the very end of the pattern with one or more of ')' left
-        else if ( check_end_of_group(re) )
-            end_result.result &= last_group_match;
-
         else 
             end_result.result &= false;
 
@@ -714,7 +660,6 @@ bool match_pattern(struct regex_input &re_in){
         else
             end_result.result &= false; 
     }
-    
     
     return end_result.result;
 }

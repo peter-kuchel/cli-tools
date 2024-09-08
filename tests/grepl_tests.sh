@@ -125,7 +125,7 @@ echo "---[ Match character literal tests ]---"
 check_match "dog" "d" "\${MATCH_FOUND}"
 check_match "dog" "f" "\${MATCH_NOT_FOUND}"
 
-echo ""
 echo "[=== Custom Tests ===]"
+echo ""
 
 echo "[=== All Tests Passed! ===]"
