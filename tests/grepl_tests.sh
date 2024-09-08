@@ -20,8 +20,9 @@ check_match()
 	
 	eval exp="$3"
 
-	res=$(echo -n $str | $GREPL_BIN -E $pat)
-	printf "Input is: " && printf $str && printf " [&&] Regex is: " && printf $pat && printf "\n"
+	echo "echo -n" $str "|" $GREPL_BIN "-E" $pat
+
+	res=$(echo -n "$str"| $GREPL_BIN -E "$pat")
 
 	printf "Expected: " && printf "${exp}" && printf " | got: " && printf "${res}\n"
 
@@ -71,63 +72,67 @@ check_match()
 # echo -n "bugs here and bugs there" | $GREPL_BIN -E "(b..s|c..e) here and \1 there"
 # echo -n "bugz here and bugs there" | $GREPL_BIN -E "(b..s|c..e) here and \1 there"
 
-# # Alternation tests 
-# echo -n "a cat" | $GREPL_BIN -E "a (cat|dog)"
-# echo -n "a dog" | $GREPL_BIN -E "a (cat|dog)"
-# echo -n "a cow" | $GREPL_BIN -E "a (cat|dog)"
 
-printf "--- Wildcard tests ---\n"
+# check_match <input str> <pattern> <expected result>
+
+
+echo "---[ Alternation tests ]---"
+check_match "a cat" "a (cat|dog)" "\${MATCH_FOUND}"
+check_match "a dog" "a (cat|dog)" "\${MATCH_FOUND}"
+check_match "a cow" "a (cat|dog)" "\${MATCH_NOT_FOUND}"
+
+echo "---[ Wildcard tests ]---"
 check_match "cat" "c.t" "\${MATCH_FOUND}"
 check_match "cot" "c.t" "\${MATCH_FOUND}"
 check_match "car" "c.t" "\${MATCH_NOT_FOUND}"
 
-# echo -n "cot" | $GREPL_BIN -E "c.t"
-# echo -n "car" | $GREPL_BIN -E "c.t"
+echo "---[ Match 0 or 1 times tests ]---"
+check_match "cat" "ca?t" "\${MATCH_FOUND}"
+check_match "act" "ca?t" "\${MATCH_FOUND}"
+check_match "dog" "ca?t" "\${MATCH_NOT_FOUND}"
+check_match "cag" "ca?t" "\${MATCH_NOT_FOUND}"
 
-# # Match 0 or 1 times 
-# echo -n "cat" | $GREPL_BIN -E "ca?t"
-# echo -n "act" | $GREPL_BIN -E "ca?t"
-# echo -n "dog" | $GREPL_BIN -E "ca?t"
-# echo -n "cag" | $GREPL_BIN -E "ca?t"
+echo "---[ Match 1 or more times tests ]---"
+check_match "caaats" "ca+t" "\${MATCH_FOUND}"
+check_match "cat" "ca+t" "\${MATCH_FOUND}"
+check_match "act" "ca+t" "\${MATCH_NOT_FOUND}"
 
-# # Match 1 or more times 
-# echo -n "caaats" | $GREPL_BIN -E "ca+t"
-# echo -n "cat" | $GREPL_BIN -E "ca+t"
-# echo -n "act" | $GREPL_BIN -E "ca+t"
+echo "---[ End of string anchor tests]---"
+check_match "cat" "cat$" "\${MATCH_FOUND}"
+check_match "cats" "cat$" "\${MATCH_NOT_FOUND}"
 
-# # End of string anchor
-# echo -n "cat" | $GREPL_BIN -E "cat$"
-# echo -n "cats" | $GREPL_BIN -E "cat$"
+echo "---[ Beginning of string anchor tests ]---"
+check_match "log" "^log" "\${MATCH_FOUND}"
+check_match "slog" "^log" "\${MATCH_NOT_FOUND}"
 
-# # Beginning of string anchor
-# echo -n "log" | $GREPL_BIN -E "^log"
-# echo -n "slog" | $GREPL_BIN -E "^log"
+echo "---[ Combining character classes tests ]---"
+check_match "sally has 3 apples" "\d apple" "\${MATCH_FOUND}"
+check_match "sally has 1 orange" "\d apple" "\${MATCH_NOT_FOUND}"
+check_match "sally has 124 apples" "\d\d\d apples" "\${MATCH_FOUND}"
+check_match "sally has 12 apples" "\d\\d\\d apples"	"\${MATCH_NOT_FOUND}"		# might have passed for the wrong reason
+check_match "sally has 3 dogs" "\d \w\w\ws" "\${MATCH_FOUND}"
+check_match "sally has 4 dogs" "\d \w\w\ws" "\${MATCH_FOUND}"
+check_match "sally has 1 dog" "\d \w\w\ws" "\${MATCH_NOT_FOUND}"
 
-# # Combining character classes
-# echo -n "sally has 3 apples" | $GREPL_BIN -E "\d apple"
-# echo -n "sally has 1 orange" | $GREPL_BIN -E "\d apple"
-# echo -n "sally has 124 apples" | $GREPL_BIN -E "\d\d\d apples"
-# echo -n "sally has 12 apples" | $GREPL_BIN -E "\d\\d\\d apples"			# might have passed for the wrong reason
-# echo -n "sally has 3 dogs" | $GREPL_BIN -E "\d \w\w\ws"
-# echo -n "sally has 4 dogs" | $GREPL_BIN -E "\d \w\w\ws"
-# echo -n "sally has 1 dog" | $GREPL_BIN -E "\d \w\w\ws"
+echo "---[ Negative character groups tests ]---"
+check_match "apple" "[^xyz]" "\${MATCH_FOUND}"
+check_match "banana" "[^anb]" "\${MATCH_NOT_FOUND}"
 
-# # Negative character groups
-# echo -n "apple" | $GREPL_BIN -E "[^xyz]"
-# echo -n "banana" | $GREPL_BIN -E "[^anb]"
+echo "---[ Positive character groups tests ]---"
+check_match "a" "[abcd]" "\${MATCH_FOUND}"
+check_match "efgh" "[abcd]" "\${MATCH_NOT_FOUND}"
+ 
+echo "---[ Match alphanumeric tests ]---"
+check_match "word" "\w" "\${MATCH_FOUND}"
+check_match "\$!?" "\w" "\${MATCH_NOT_FOUND}"
 
-# # Positive character groups
-# echo -n "a" | $GREPL_BIN -E "[abcd]"
-# echo -n "efgh" | $GREPL_BIN -E "[abcd]"
+echo "---[ Match digits tests ]---"
+check_match "123" "\d" "\${MATCH_FOUND}"
+check_match "apple" "\d" "\${MATCH_NOT_FOUND}"
 
-# # Match alphanumeric 
-# echo -n "word" | $GREPL_BIN -E "\w"
-# echo -n "$!?" | $GREPL_BIN -E "\w"
+echo "---[ Match character literal tests ]---"
+check_match "dog" "d" "\${MATCH_FOUND}"
+check_match "dog" "f" "\${MATCH_NOT_FOUND}"
 
-# # Match digits
-# echo -n "123" | $GREPL_BIN -E "\d"
-# echo -n "apple" | $GREPL_BIN -E "\d"
 
-# # Match character literal 
-# echo -n "dog" | $GREPL_BIN -E "d"
-# echo -n "dog" | $GREPL_BIN -E "f"
+echo "[=== All Tests Passed! ===]"
