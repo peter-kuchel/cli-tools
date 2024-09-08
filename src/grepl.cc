@@ -152,13 +152,14 @@ void build_regex_match(str_itr &input_str, struct regex &re, struct regex_input 
         case REGXCASE::SINGLE_BACKREF:
             // the iter after breaking from the switch should go past the '('
             re.skip_char = true;
-            break;
+            return;
 
         default:
             if (DEBUG) std::cout << "AT DEFAULT" << std::endl; 
             break; 
     }
     
+    if (DEBUG) std::cout << "inc pos" << std::endl; 
     ++re.proc_stack[re.curr].pos;
 }
 
@@ -185,21 +186,32 @@ bool parse_group_backreference(struct regex &re){
         // inc past the reference number in the original group
         ++re.proc_stack[re.curr].pos;
 
-        struct capture_group g = re.captured_groups[group_ref];
+        struct capture_group &g = re.captured_groups[group_ref];
 
         if (DEBUG){
             std::cout << "[========================================================]" << std::endl; 
             std::cout << "captured pattern is: " << g.captured_pattern << std::endl; 
         }
 
-        if (g.captured_pattern.length() > 0)
-            re.proc_stack.push_back( { std::begin(g.captured_pattern), std::end(g.captured_pattern), true } );
-        else
-            re.proc_stack.push_back( {g.group_start, g.group_start + g.group_size, true} );
 
+        re.proc_stack.push_back( { g.captured_pattern.begin(), g.captured_pattern.end(), true } );
         re.curr = group_ref; 
 
         re.current_pattern = REGXCASE::SINGLE_BACKREF;
+
+        // if (DEBUG){
+        //     std::cout << "TEST: "; 
+        //     str_itr s = re.proc_stack[re.curr].pos;
+        //     str_itr e = re.proc_stack[re.curr].group_end;
+
+        //     int i= 0;
+        //     while ( (s + i) != e){
+        //         std::cout << *(s + i) ;
+        //         i++;
+        //     }
+
+        //     std::cout << std::endl; 
+        // }
 
         return true; 
     }
@@ -238,7 +250,21 @@ void parse_new_group(struct regex &re){
 void parse_next_pattern(str_itr &input_str, struct regex &re, struct regex_input &re_in){
     
     if (DEBUG)
-        std::cout << "-- Parsing next pattern --" << std::endl; 
+        std::cout << "[Parsing next pattern] for ( "<< re.curr << " ) in the process stack" << std::endl; 
+
+    // if (DEBUG){
+    //     std::cout << "TEST: "; 
+    //     str_itr s = re.proc_stack[re.curr].pos;
+    //     str_itr e = re.proc_stack[re.curr].group_end;
+
+    //     int i= 0;
+    //     while ( (s + i) != e){
+    //         std::cout << *(s + i) ;
+    //         i++;
+    //     }
+
+    //     std::cout << std::endl; 
+    // }
 
     str_itr pattern_pos = re.proc_stack[re.curr].pos;
 
@@ -367,17 +393,6 @@ bool check_begin_group_capture(struct regex &re){
 
     return false;
 }
-
-// bool check_end_group_capture(struct regex &re){
-
-//     if (re.end_group_capture){
-
-//         re.end_group_capture = false;
-//         return true; 
-//     }
-
-//     return false; 
-// }
 
 bool check_current_group_finished(struct regex &re){
 
