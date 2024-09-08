@@ -47,10 +47,9 @@ echo ""
 # echo -n "3 red squares and 3 red circles" | ./bin/grepl -E "(\d+) (\w+) squares and \1 \2 circles"
 
 
-# echo "---[ Multiple Backreferences tests ]---"
-# check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \1 \2 circles" "\${MATCH_FOUND}"
-# check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \1 \2 circles" "\${MATCH_NOT_FOUND}"
-
+echo "---[ Multiple Backreferences tests ]---"
+check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \1 \2 circles" "\${MATCH_FOUND}"
+check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \1 \2 circles" "\${MATCH_NOT_FOUND}"
 
 echo "---[ Single Backreferences tests ]---"
 check_match "grep 101 is doing grep 101 times" "(\w\w\w\w \d\d\d) is doing \1 times" "\${MATCH_FOUND}"

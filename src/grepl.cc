@@ -69,7 +69,7 @@ void build_alternation(str_itr &input_str, struct regex &re, struct regex_input 
 
         if (re.capturing_group)
             re.capturing_group = false; 
-        
+
         re.proc_stack.pop_back();
 
         if (re.proc_stack.size() != 0){
@@ -197,7 +197,8 @@ bool parse_group_backreference(struct regex &re){
 
 
         re.proc_stack.push_back( { g.captured_pattern.begin(), g.captured_pattern.end(), true } );
-        re.curr = group_ref; 
+        // re.curr = group_ref; 
+        re.curr = re.proc_stack.size() - 1;
 
         re.current_pattern = REGXCASE::SINGLE_BACKREF;
 
@@ -593,43 +594,10 @@ bool match_pattern(struct regex_input &re_in){
     // str_itr pattern_iter; 
     while (end_result.result && input_str != input_end){
 
-        // check if current processing group is finished 
-        // if (re.proc_stack[re.curr].pos == re.proc_stack[re.curr].group_end){
-
-        //     if (DEBUG)
-        //         std::cout << " --[ current pattern is finished ]-- " << std::endl; 
-
-        //     end_result.result &= re.proc_stack[re.curr].group_matched; 
-
-        //     if (DEBUG)
-        //         std::cout << " group result was: " << re.proc_stack[re.curr].group_matched << std::endl; 
-
-        //     if (!end_result.result) 
-        //         break; 
-
-        //     if (re.capturing_group)
-        //         re.capturing_group = false;
-
-        //     re.proc_stack.pop_back();
-
-        //     // if nothing in the process stack then it is finished
-        //     if (re.proc_stack.size() == 0)
-        //         break;
-
-        //     re.curr = re.proc_stack.size() - 1;
-
-        //     // skip over '(' if starts with that (since group is already being accounted for?)
-        //     if ( *(re.proc_stack[re.curr].pos) == '(')
-        //         ++re.proc_stack[re.curr].pos;
-
-
-        // } 
-
         // if true then either stack is empty or last group result was false
         if ( check_current_process(re, end_result) )
             break; 
 
-        
         parse_next_pattern(input_str, re, re_in);
 
         // * check for one or more and if failed to match for previous
