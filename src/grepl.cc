@@ -542,7 +542,8 @@ bool match_pattern(struct regex_input &re_in){
 
     // continue matching
 
-    std::cout << "[checking rest of string]" << std::endl; 
+    if (DEBUG)
+        std::cout << "[checking rest of string]" << std::endl; 
     
     bool current_matched, is_optional;
 
