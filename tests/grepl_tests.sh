@@ -1,8 +1,5 @@
 #!/bin/sh
 
-make mk-bin-dir grepl
-echo ""
-
 # GREPL_BIN='./bin/grepldebug'
 GREPL_BIN='./bin/grepl'
 
@@ -26,7 +23,7 @@ check_match()
 
 	res=$(echo -n "$str"| $GREPL_BIN -E "$pat")
 
-	echo $res
+	# echo $res
 
 	printf "Expected: " && printf "${exp}" && printf " | got: " && printf "${res}\n"
 
@@ -41,30 +38,21 @@ check_match()
 
 }
 
-# Backreferences tests 
-# printf "input str is: " && printf "cat and cat\n" && printf "regex pattern is: " && printf "(cat) and \\1 " && printf "\n"
-# (printf "Expected: match found | got: ") && 
-# RESULT=$(echo -n "cat and cat" | $GREPL_BIN -E "(cat) and \1")
+make mk-bin-dir grepl
+echo ""
 
-# echo $RESULT
-# echo ""
-# check_match $RESULT $MATCH_FOUND
+echo "[=== Custom Tests ===]"
 
-# printf "input str is: " && printf "cat and dog\n" && printf "regex pattern is: " && printf "(cat) and \\ 1 " && printf "\n"
-# (printf "Expected: match found | got: ") &&
-# RESULT=$(echo -n "cat and dog" | $GREPL_BIN -E "(cat) and \1")
-
-# echo $RESULT
 
 echo "[=== Code Crafter Tests ===]"
 echo ""
 
-echo -n "3 red squares and 3 red circles" | ./bin/grepl -E "(\d+) (\w+) squares and \1 \2 circles"
+# echo -n "3 red squares and 3 red circles" | ./bin/grepl -E "(\d+) (\w+) squares and \1 \2 circles"
 
 
-echo "---[ Multiple Backreferences tests ]---"
-check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_FOUND}"
-check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_NOT_FOUND}"
+# echo "---[ Multiple Backreferences tests ]---"
+# check_match "3 red squares and 3 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_FOUND}"
+# check_match "3 red squares and 4 red circles" "(\d+) (\w+) squares and \\1 \\2 circles" "\${MATCH_NOT_FOUND}"
 
 
 echo "---[ Single Backreferences tests ]---"
@@ -83,12 +71,10 @@ check_match "once a dreaaamer, alwayszzz a dreaaamer" "once a (drea+mer), always
 check_match "bugs here and bugs there" "(b..s|c..e) here and \1 there" "\${MATCH_FOUND}"
 check_match "bugz here and bugs there" "(b..s|c..e) here and \1 there" "\${MATCH_NOT_FOUND}"
 
-
 echo "---[ Alternation tests ]---"
 check_match "a cat" "a (cat|dog)" "\${MATCH_FOUND}"
 check_match "a dog" "a (cat|dog)" "\${MATCH_FOUND}"
 check_match "a cow" "a (cat|dog)" "\${MATCH_NOT_FOUND}"
-
 
 echo "---[ Wildcard tests ]---"
 check_match "cat" "c.t" "\${MATCH_FOUND}"

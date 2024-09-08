@@ -10,15 +10,17 @@ void create_chr_set(chr_set &c_set, const std::string &chars){
 }
 
 void init_regex(struct regex &re, struct regex_input &re_in){
+
     re.one_or_more = false; 
     re.prev_matched = false; 
     re.skip_char = false; 
+    re.capturing_group = false;
 
     re.begin_group_capture = false;
     re.end_group_capture = false; 
 
     // adding the input line just so it takes index 0 
-    re.captured_groups.push_back( {std::begin(re_in.pattern), (int)re_in.pattern.size()} );
+    re.captured_groups.push_back( {std::begin(re_in.pattern), "", (int)re_in.pattern.size()} );
 
     re.proc_stack.push_back( {std::begin(re_in.pattern), std::end(re_in.pattern), true} );
     re.curr = re.proc_stack.size() - 1;
@@ -31,7 +33,6 @@ void reset_regex(struct regex &re){
     re.start_of_line  = false; 
     re.end_of_line = false; 
 
-    re.skip_iter; 
 }
 
 void build_alternation(str_itr &input_str, struct regex &re, struct regex_input &re_in){
@@ -138,6 +139,7 @@ void build_regex_match(str_itr &input_str, struct regex &re, struct regex_input 
 
         case REGXCASE::END_GROUP_CAP:
             --re.proc_stack[re.curr].pos;               // do this so that we can keep it if at end of pattern expression for check_end_of_group()
+            re.capturing_group = false;
             break;
 
         case REGXCASE::ALTERNATION:
@@ -174,7 +176,7 @@ bool parse_group_backreference(struct regex &re){
         // possible bug if there are more than 9 backreferences
         int group_ref = p - '0';
 
-        if ( group_ref > re.captured_groups.size() )
+        if ( group_ref > (int)re.captured_groups.size() )
             return false; 
 
         if (DEBUG)
@@ -185,7 +187,16 @@ bool parse_group_backreference(struct regex &re){
 
         struct capture_group g = re.captured_groups[group_ref];
 
-        re.proc_stack.push_back( {g.group_start, g.group_start + g.group_size, true} );
+        if (DEBUG){
+            std::cout << "[========================================================]" << std::endl; 
+            std::cout << "captured pattern is: " << g.captured_pattern << std::endl; 
+        }
+
+        if (g.captured_pattern.length() > 0)
+            re.proc_stack.push_back( { std::begin(g.captured_pattern), std::end(g.captured_pattern), true } );
+        else
+            re.proc_stack.push_back( {g.group_start, g.group_start + g.group_size, true} );
+
         re.curr = group_ref; 
 
         re.current_pattern = REGXCASE::SINGLE_BACKREF;
@@ -205,8 +216,8 @@ void parse_new_group(struct regex &re){
     while (*(current_position + i) != ')')
         i++; 
 
-    // should be ordered by when they were push which will correspond to back reference
-    re.captured_groups.push_back( { current_position, i } );
+    // should be ordered by when they were pushed which will correspond to back reference
+    re.captured_groups.push_back( { current_position, "", i } );
 
     // need to move iterator of current group past the )
     re.proc_stack[re.curr].pos += (i + 1);
@@ -220,6 +231,8 @@ void parse_new_group(struct regex &re){
         std::cout << "[New Group Added]: " << re.captured_groups.size() - 1 << std::endl; 
         std::cout<< "Current group being processed is: " << re.curr << std::endl;
     }
+
+    re.capturing_group = true; 
 }
 
 void parse_next_pattern(str_itr &input_str, struct regex &re, struct regex_input &re_in){
@@ -463,9 +476,11 @@ bool check_for_alternation(struct regex &re){
 
 bool check_skip_char(struct regex &re){
 
-    if (DEBUG)
-        std::cout << "Skipping this char in the pattern" << std::endl;
+    
     if (re.skip_char){
+
+        if (DEBUG)
+            std::cout << "Skipping this char in the pattern" << std::endl;
 
         re.skip_char = false; 
         return true;
@@ -517,8 +532,10 @@ bool match_pattern(struct regex_input &re_in){
                 std::cout << "At: " << *input_str << " -- entry found: " << entry_position << std::endl;
             } 
 
-            ++input_str;
+            
             if (entry_position) break; 
+
+            ++input_str;
             
         }
 
@@ -536,8 +553,14 @@ bool match_pattern(struct regex_input &re_in){
             }
         }
 
-        if (entry_position)
-            re.prev_matched = true; 
+        if (entry_position){
+            if (re.capturing_group)
+                re.captured_groups[ re.captured_groups.size() - 1].captured_pattern.append(input_str, input_str+1);
+
+            re.prev_matched = true;
+            ++input_str;
+        }
+             
     }
 
     // continue matching
@@ -564,6 +587,9 @@ bool match_pattern(struct regex_input &re_in){
             if (!end_result) 
                 break; 
 
+            if (re.capturing_group)
+                re.capturing_group = false;
+
             re.proc_stack.pop_back();
 
             // if nothing in the process stack then it is finished
@@ -572,7 +598,7 @@ bool match_pattern(struct regex_input &re_in){
 
             re.curr = re.proc_stack.size() - 1;
 
-            // skip over '(' if starts with that
+            // skip over '(' if starts with that (since group is already being accounted for?)
             if ( *(re.proc_stack[re.curr].pos) == '(')
                 ++re.proc_stack[re.curr].pos;
 
@@ -605,6 +631,10 @@ bool match_pattern(struct regex_input &re_in){
             }
                 
             re.prev_matched = current_matched;
+
+            // possible future bug here if were to implement nested backreferences (?)
+            if (re.capturing_group && current_matched)
+                re.captured_groups[ re.captured_groups.size() - 1 ].captured_pattern.append(input_str, input_str+1);
 
             ++input_str;
             
