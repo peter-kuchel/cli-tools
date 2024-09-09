@@ -53,6 +53,11 @@ void build_alternation(str_itr &input_str, struct regex &re, struct regex_input 
         if (DEBUG)
             std::cout << "[ ALTERNATION ]\nmoving input back: " << ( (i+1) * -1) << " spaces" << std::endl;
 
+        // reset the capture group if the previous alternation was false
+        if (re.capturing_group)
+            re.captured_groups[ re.captured_groups.size() - 1].captured_pattern.clear();
+
+        
         // re-try for the alternation
         re.proc_stack[re.curr].group_matched = true;
 
@@ -517,8 +522,10 @@ bool match_pattern(struct regex_input &re_in){
 
             if (DEBUG)
                 std::cout << "{ No entry point found }" << std::endl; 
-            // check if next char would be alternation
+            
 
+            // set as false since no entry was found, and check if next char would be alternation
+            re.proc_stack[re.curr].group_matched = false; 
             if ( !check_for_alternation(re) ){
                 return false; 
 
