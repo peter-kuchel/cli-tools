@@ -142,7 +142,7 @@ void build_regex_match(str_itr &input_str, struct regex &re, struct regex_input 
             break;
 
         case REGXCASE::END_GROUP_CAP:
-            --re.proc_stack[re.curr].pos;               // do this so that we can keep it if at end of pattern expression for check_end_of_group()
+            --re.proc_stack[re.curr].pos;               // do this so that we can keep it if at end of pattern expression for check_end_of_group()?
             re.capturing_group = false;
             break;
 

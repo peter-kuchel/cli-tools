@@ -27,6 +27,7 @@ all: 	mk-bin-dir 		\
 	 	minserver 		\
 	 	ping			\
 	 	lines			\
+	 	grepl			\
 
 mk-bin-dir:
 	mkdir -p bin 
@@ -59,7 +60,7 @@ kcrypto:
 	$(CC) $(CFLAGS) $(COMMONS) $(NTL) $(SRC_DIR)/kcrypto.c -o $(BIN_DIR)/kcrypto
 
 lines:
-	$(CXX) $(CPPFLAGS) $(SRC_DIR)/lines.cpp -o $(BIN_DIR)/lines 
+	$(CXX) $(CPPFLAGS) $(SRC_DIR)/lines.cc -o $(BIN_DIR)/lines 
 
 grepl:
 	$(CXX) $(CPPFLAGS) src/grepl.cc -o bin/grepl
