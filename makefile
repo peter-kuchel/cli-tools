@@ -64,3 +64,6 @@ lines:
 
 grepl:
 	$(CXX) $(CPPFLAGS) src/grepl.cc -o bin/grepl
+
+obfuscator:
+	$(CXX) $(CPPFLAGS) src/obfuscator.cc -o bin/obfuscator

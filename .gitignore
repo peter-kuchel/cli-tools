@@ -11,3 +11,4 @@ tooldesc
 rawsocktest
 src/test.c
 files/
+tests/ob_js_test.js
