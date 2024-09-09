@@ -639,13 +639,16 @@ bool match_pattern(struct regex_input &re_in){
         } while (re.proc_stack[re.curr].pos == re.proc_stack[re.curr].group_end);
 
 
-        // get last pattern to check for $ or | 
+        // get last pattern to check for $, |, or +  
         parse_next_pattern(input_str, re, re_in);
         
         // possible bug with the alternation case (?)
-        if (re.end_of_line || re.current_pattern == REGXCASE::ALTERNATION)
-            end_result.result &= true; 
-        else 
+        if (re.end_of_line || re.current_pattern == REGXCASE::ALTERNATION || re.one_or_more){
+            
+            if ( check_current_process(re, end_result) ) 
+                end_result.result &= true;
+
+        } else 
             end_result.result &= false;
 
     } 

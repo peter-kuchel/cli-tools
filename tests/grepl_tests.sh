@@ -143,7 +143,7 @@ check_match "yes yes and no with yes no but yes but no" "(\w+) \1 and (\w+) with
 check_match "no nope nah and nor are the same as nah nor no and nope" "(\w+) (\w+) (\w+) and (\w+) are the same as \3 \4 \1 and \2" "\${MATCH_FOUND}"
 check_match "thiszszsz is the same as thiszszsz" "thi([sz]+) is the same as thi\1" "\${MATCH_FOUND}"
 check_match "dug and bund, dug with bund" "(c.t|d.g) (\w+) (f..h|b..d), \1 (\w+) \3" "\${MATCH_FOUND}"
-check_match "3m is about 10ft" "(\d+[mft]+) is (\w+) (\d+[mft]+)"
+check_match "3m is about 10ft" "(\d+[mft]+) is (\w+) (\d+[mft]+)" "\${MATCH_FOUND}"
 # check_match ", sure" "(c.t|d.g)?, sure" "\${MATCH_FOUND}"
 
 echo "[=== All Tests Passed! ===]"
