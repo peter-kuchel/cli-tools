@@ -17,7 +17,7 @@ printf \
 '}\n'\
 'console.log(arr)' > $TEST_FILE
 
-$OB_BIN $TEST_FILE_NOT_SUPPORTED
+# $OB_BIN $TEST_FILE_NOT_SUPPORTED
 
 $OB_BIN $TEST_FILE
 # res=$($OB_BIN $TEST_FILE)

@@ -7,8 +7,54 @@
 #include <vector>
 #include <string>
 #include <unordered_set>
+#include <unordered_map>
 
-const std::unordered_set<std::string> supported_exts ( {"js", "c"} );
+typedef std::unordered_map<std::string, std::string> str_map; 
+typedef std::unordered_set<std::string> str_set;
+
+// enum ATTR_STATUS {
+
+// 	ATTR,
+// 	NON_ATR
+
+// };
+
+struct obfusdata {
+
+	int var_count; 
+	char last_attr_char;
+	bool last_char_is_attr; 
+	 
+};
+
+const str_set supported_exts ( {"js"} );
+
+
+// includes words that were also removed from the ECMAScript 5/6 standard
+const str_set js_reserved_words ( {
+	"abstract", "arguments", "await", "boolean",
+	"break", "byte", "case", "catch",
+	"char", "class", "const", "continue",
+	"debugger",	"default", "delete", "do",
+	"double", "else", "enum", "eval",
+	"export", "extends", "false", "final",
+	"finally", "float", "for", "function",
+	"goto", "if", "implements", "import",
+	"in", "instanceof", "int", "interface",
+	"let", "long", "native", "new",
+	"null", "package", "private", "protected",
+	"public", "return", "short", "static",
+	"super", "switch", "synchronized", "this",
+	"throw", "throws", "transient", "true",
+	"try", "typeof", "var", "void",
+	"volatile", "while", "with", "yield",
+
+	"Array", "Date",
+	"hasOwnProperty", "Infinity", "isFinite", "isNaN",
+	"isPrototypeOf", "length", "Math", "NaN",
+	"name", "Number", "Object", "prototype",
+	"String", "toString", "undefined", "valueOf"
+} );
 
 
 void usage(){
