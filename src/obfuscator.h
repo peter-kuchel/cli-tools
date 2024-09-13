@@ -6,11 +6,13 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <regex>
 #include <unordered_set>
 #include <unordered_map>
 
 typedef std::unordered_map<std::string, std::string> str_map; 
 typedef std::unordered_set<std::string> str_set;
+typedef std::unordered_set<char> char_set; 
 
 // enum ATTR_STATUS {
 
@@ -20,12 +22,21 @@ typedef std::unordered_set<std::string> str_set;
 // };
 
 struct obfusdata {
-
+	std::string last_token;
 	int var_count; 
-	char last_attr_char;
-	bool last_char_is_attr; 
+	bool next_token_is_attr; 
 	 
 };
+
+const char_set non_cap_chars ( {
+
+	'\n', ' ', '\t',
+	'=', '+', '-', '*', '/', '<', '>', '%',
+	'.', ',', ';', ':',
+	'[', ']', '{', '}', '(', ')',
+	'!', '&', '|', '^', '$',
+	'#'
+} );
 
 const str_set supported_exts ( {"js"} );
 
@@ -53,7 +64,9 @@ const str_set js_reserved_words ( {
 	"hasOwnProperty", "Infinity", "isFinite", "isNaN",
 	"isPrototypeOf", "length", "Math", "NaN",
 	"name", "Number", "Object", "prototype",
-	"String", "toString", "undefined", "valueOf"
+	"String", "toString", "undefined", "valueOf",
+
+	"console"
 } );
 
 

@@ -6,19 +6,13 @@ void add_to_set(str_set &_set, const str_set &resv_words){
         _set.insert(*w); 
 }
 
-bool capturable_char(char c, struct obfusdata &data){
+bool capturable_char(char c, struct obfusdata &data, char_set &non_captures){ 
 
-	switch(c){
-		case '.':
-			data.last_char_is_attr = true; 
-			break; 
-		case ' ':
-		case '\n':
-		case '=':
-			break; 
-		default:
-			return true; 		
-	}
+	if (non_captures.find( c ) == non_captures.end())
+		return true;
+
+	if (c == '.')
+		data.next_token_is_attr = true;  
 
 	return false; 
 }
@@ -26,40 +20,54 @@ bool capturable_char(char c, struct obfusdata &data){
 void process_token(std::string &token, std::string &new_fcontent, str_set &resv_words, str_map &token_map, struct obfusdata &data){
 
 	std::cout << "Token found: " << token << std::endl;
-	// check if token cannot be altered 
-	if ( resv_words.find( token ) != resv_words.end() ){
+
+	std::regex re_magic_num ("[^A-Za-z_]");
+	std::regex re_hex_num ("0x[0-9a-fA-F]+");
+	
+
+	// check if token is a constant number or hex value 
+	bool const_val = std::regex_match(token, re_magic_num) || std::regex_match(token, re_hex_num);
+
+	// check if token cannot be altered or is some const value not to be mapped
+	if ( resv_words.find( token ) != resv_words.end() || const_val){
 		new_fcontent += token; 
 
-	} else {
+	
+	}  else {
 
-		// otherwise check add to token map
-		if ( token_map.find(token) == token_map.end()){
+		str_map::const_iterator map_val = token_map.find(token);
+		// otherwise check if needs to be added to token map
+		if ( map_val == token_map.end()){
 
-			std::string val ("x" + std::to_string(data.var_count)) ;
+			// to avoid standard attributes and functions of built-ins 
+			if (! data.next_token_is_attr){
+
+				std::cout << "adding " << token << " to map" << std::endl;
+				std::string val ("__obs_n" + std::to_string(data.var_count));
 			
-			token_map.insert( {token, val} );
-			data.var_count++;
+				token_map.insert( {token, val} );
+				data.var_count++;
+				new_fcontent += val;
+				
+			} else {
+				data.next_token_is_attr = false;
+				new_fcontent += token; 
+			}
+			
+		} else {
+
+			// else the token already has a map value
+			new_fcontent += map_val->second; 
 		}
 	}
-
-	token.clear();
 }
 
-bool token_captured(std::string &token, char c){
+bool token_captured(std::string &token, char_set &non_captures, char c){
  
 	bool capt_prereq = false;  
-	switch (c){
-		case ' ':
-		case '=':
-		case '\n':
-		case ',':
-		case '.':
-			capt_prereq = true;
-			break; 
 
-		default:
-			break;
-	}
+	if (non_captures.find( c ) != non_captures.end())
+		capt_prereq = true; 
 
 	capt_prereq &= token.size() > 0;
 
@@ -68,12 +76,34 @@ bool token_captured(std::string &token, char c){
 
 void init_obfusdata(struct obfusdata &data){
 	data.var_count = 0;
-	data.last_char_is_attr = false; 
+	data.next_token_is_attr = false; 
 }
 
-void obfuscate(std::string &fcontent, str_set &resv_words){
+void avoid_imports(struct obfusdata &data, std::string &new_fcontent, std::string::iterator &f_ptr, char c){
+	std::string str; 
+	int i = 1;
 
-	// std::cout << fcontent << std::endl; 
+	if (c == '#'){
+
+		while (*(f_ptr + i ) != ' '){
+			str.push_back( *( f_ptr + i) );
+			i++;
+		}
+	}
+
+	if (
+		data.last_token.compare("import") == 0 || 
+		str.compare("include") == 0
+	){
+		while (*f_ptr != '\n'){
+			new_fcontent.push_back( *f_ptr );
+			f_ptr++; 
+		}
+	} 
+	
+}
+
+void obfuscate(std::string &fcontent, str_set &resv_words, char_set &non_captures){ 
 
 	std::string new_fcontent, token;  
 	std::string::iterator f_ptr = fcontent.begin(), f_end = fcontent.end();
@@ -81,21 +111,52 @@ void obfuscate(std::string &fcontent, str_set &resv_words){
 	str_map token_map; 
 
 	obfusdata data; 
+	init_obfusdata(data);
 	 
 
 	while (f_ptr != f_end){
 
 		char c = *f_ptr;
 
-		if ( token_captured(token, c) )
-
+		if ( token_captured(token, non_captures, c) ){
 			process_token(token, new_fcontent, resv_words, token_map, data);
 
-		 
-		if ( capturable_char(c, data) )
+			data.last_token.clear();
+			data.last_token.append(token); 
+			token.clear();
+		}
+
+
+		if ( capturable_char(c, data, non_captures) ){
 			token.push_back( c );
-		else 
+
+		} else {
+
+			// avoid tokenizing strings 
+			if (c == '\"' || c == '\'' || c == '`'){
+				
+				do {
+					new_fcontent.push_back(*f_ptr);
+					f_ptr++; 
+
+				} while (*f_ptr != c);
+
+			// avoid tokenizing comments (only handles c-style comments atm if to expand supported langs)
+			} else if (c == '/'&& *(f_ptr + 1) == '/'){
+
+				while (*f_ptr != '\n'){
+					new_fcontent.push_back(*f_ptr); 
+					f_ptr++;
+				}
+
+				c = *f_ptr;
+			} 
+
+			// avoid tokenizing imports (assumes only from standard libraries atm)
+			avoid_imports(data, new_fcontent, f_ptr, c);
+
 			new_fcontent.push_back(c);
+		}
 
 		f_ptr++;
 		
@@ -106,6 +167,7 @@ void obfuscate(std::string &fcontent, str_set &resv_words){
 	}
 
 	std::cout << fcontent << std::endl; 
+	std::cout << new_fcontent << std::endl; 
 	std::cout << "hello\n";
 }
 
@@ -149,10 +211,11 @@ void setup_obfuscate(std::string &fext, std::string &fname){
 	fcontent.pop_back();
 
 	str_set reserve_words; 
+	char_set non_captures (non_cap_chars); 
 
 	find_lang_resv_words(reserve_words, fext);
 
-	obfuscate(fcontent, reserve_words);
+	obfuscate(fcontent, reserve_words, non_captures);
 
 		
 }
