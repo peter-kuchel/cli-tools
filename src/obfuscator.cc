@@ -19,7 +19,7 @@ bool capturable_char(char c, struct obfusdata &data, char_set &non_captures){
 
 void process_token(std::string &token, std::string &new_fcontent, str_set &resv_words, str_map &token_map, struct obfusdata &data){
 
-	std::cout << "Token found: " << token << std::endl;
+	// std::cout << "Token found: " << token << std::endl;
 
 	std::regex re_magic_num ("[^A-Za-z_]");
 	std::regex re_hex_num ("0x[0-9a-fA-F]+");
@@ -40,9 +40,11 @@ void process_token(std::string &token, std::string &new_fcontent, str_set &resv_
 		if ( map_val == token_map.end()){
 
 			// to avoid standard attributes and functions of built-ins 
-			if (! data.next_token_is_attr){
+			if ( !data.next_token_is_attr ){
 
-				std::cout << "adding " << token << " to map" << std::endl;
+				// std::cout << "adding " << token << " to map" << std::endl;
+
+				// create obfusacted variable name
 				std::string val ("__obs_n" + std::to_string(data.var_count));
 			
 				token_map.insert( {token, val} );
@@ -77,6 +79,7 @@ bool token_captured(std::string &token, char_set &non_captures, char c){
 void init_obfusdata(struct obfusdata &data){
 	data.var_count = 0;
 	data.next_token_is_attr = false; 
+	data.last_char = '\0'; 
 }
 
 void avoid_imports(struct obfusdata &data, std::string &new_fcontent, std::string::iterator &f_ptr, char c){
@@ -103,20 +106,27 @@ void avoid_imports(struct obfusdata &data, std::string &new_fcontent, std::strin
 	
 }
 
-void obfuscate(std::string &fcontent, str_set &resv_words, char_set &non_captures){ 
+void obfuscate(std::string &fcontent, std::string &new_fcontent, str_set &resv_words, char_set &non_captures){ 
 
-	std::string new_fcontent, token;  
+	std::string token;  
 	std::string::iterator f_ptr = fcontent.begin(), f_end = fcontent.end();
 
 	str_map token_map; 
 
+	std::regex re_non_space ("[ \t\r\f]");
+	std::regex re_eol_ids ("[{};]");
+
 	obfusdata data; 
 	init_obfusdata(data);
-	 
+	std::string _c, tmp;					// char as a string for regex matching
 
 	while (f_ptr != f_end){
 
 		char c = *f_ptr;
+
+		_c.push_back(c);
+
+		bool is_space_char = std::regex_match(_c, re_non_space); 
 
 		if ( token_captured(token, non_captures, c) ){
 			process_token(token, new_fcontent, resv_words, token_map, data);
@@ -152,23 +162,39 @@ void obfuscate(std::string &fcontent, str_set &resv_words, char_set &non_capture
 				c = *f_ptr;
 			} 
 
+
+
 			// avoid tokenizing imports (assumes only from standard libraries atm)
 			avoid_imports(data, new_fcontent, f_ptr, c);
+			
+				
+			if ( c == '\n' ){
 
-			new_fcontent.push_back(c);
+				tmp.push_back(data.last_char);
+
+				if ( !std::regex_match(tmp, re_eol_ids) && data.last_char != '\n' && new_fcontent.size() > 0)
+					new_fcontent.push_back(';');
+
+				tmp.clear();
+			} else if ( !is_space_char )
+				new_fcontent.push_back(c);
 		}
 
+		if (!is_space_char)
+			data.last_char = c;
+
 		f_ptr++;
+		_c.clear();
 		
 	}
 
-	for (auto t = token_map.begin(); t != token_map.end(); ++t){
-		std::cout << t->first << " : " << t->second << std::endl;
-	}
+	// std::cout << "Tokens in map: " << std::endl; 
+	// for (auto t = token_map.begin(); t != token_map.end(); ++t){
+	// 	std::cout << t->first << " : " << t->second << std::endl;
+	// }
 
-	std::cout << fcontent << std::endl; 
+	// std::cout << fcontent << std::endl; 
 	std::cout << new_fcontent << std::endl; 
-	std::cout << "hello\n";
 }
 
 void find_lang_resv_words(str_set &resv_words, std::string &fext){
@@ -190,7 +216,7 @@ void setup_obfuscate(std::string &fext, std::string &fname){
 		exit(1);
 	}
 
-	std::string fcontent;
+	std::string fcontent, new_fcontent;
 	std::string fline; 
 	std::ifstream f (fname); 
 
@@ -215,7 +241,10 @@ void setup_obfuscate(std::string &fext, std::string &fname){
 
 	find_lang_resv_words(reserve_words, fext);
 
-	obfuscate(fcontent, reserve_words, non_captures);
+	obfuscate(fcontent, new_fcontent, reserve_words, non_captures);
+
+	std::string new_fname ("ob_");
+	new_fname += fname; 
 
 		
 }

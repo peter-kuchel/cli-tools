@@ -25,6 +25,7 @@ struct obfusdata {
 	std::string last_token;
 	int var_count; 
 	bool next_token_is_attr; 
+	char last_char; 
 	 
 };
 
