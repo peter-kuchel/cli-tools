@@ -70,7 +70,7 @@ A collection of command line tools written in C/C++ for personal use and to bett
 
 ## Installation
 
-Running with 
+Running  
 ```bash
 make 
 ```
@@ -78,5 +78,7 @@ will create all of the tools inside of a directory named bin.
 Tools can be build individually by inspecting the makefile. 
 
 Usage of all tools should be seen with the flag: -help or -h , or by running the binary with no input. 
+
+NOTE: currently all of the tool have been developed and tested on Linux, there are no guarantees they will work elsewhere
 
 

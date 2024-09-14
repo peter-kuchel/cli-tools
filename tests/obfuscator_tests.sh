@@ -10,7 +10,7 @@ make mk-bin-dir obfuscator
 
 # simple test
 printf \
-'\n\narr = [1,2,3]\n'\
+'\n\nlet arr = [1,2,3]\n'\
 'let x = 1\n'\
 'arr.push(x)\n'\
 'if (x < 2){\n'\

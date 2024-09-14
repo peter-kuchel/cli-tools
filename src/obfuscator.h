@@ -7,6 +7,8 @@
 #include <vector>
 #include <string>
 #include <regex>
+#include <chrono>
+#include <random>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -22,6 +24,9 @@ typedef std::unordered_set<char> char_set;
 // };
 
 struct obfusdata {
+	std::default_random_engine gen;
+	std::uniform_int_distribution<int> dist;
+
 	std::string last_token;
 	int var_count; 
 	bool next_token_is_attr; 

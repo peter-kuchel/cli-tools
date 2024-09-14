@@ -17,7 +17,7 @@ bool capturable_char(char c, struct obfusdata &data, char_set &non_captures){
 	return false; 
 }
 
-void process_token(std::string &token, std::string &new_fcontent, str_set &resv_words, str_map &token_map, struct obfusdata &data){
+void process_token(std::string &token, std::string &new_fcontent, str_set &resv_words, str_map &token_map, struct obfusdata &data, char c){
 
 	// std::cout << "Token found: " << token << std::endl;
 
@@ -30,7 +30,13 @@ void process_token(std::string &token, std::string &new_fcontent, str_set &resv_
 
 	// check if token cannot be altered or is some const value not to be mapped
 	if ( resv_words.find( token ) != resv_words.end() || const_val){
-		new_fcontent += token; 
+		
+
+		// simple fix for spacing (needs to be improved in the future)
+		new_fcontent += (" " + token);
+
+		if (c != '.') 
+			new_fcontent.push_back(' '); 
 
 	
 	}  else {
@@ -45,11 +51,30 @@ void process_token(std::string &token, std::string &new_fcontent, str_set &resv_
 				// std::cout << "adding " << token << " to map" << std::endl;
 
 				// create obfusacted variable name
-				std::string val ("__obs_n" + std::to_string(data.var_count));
+				std::string obs_val; 
+
+				do {
+					obs_val.clear();
+					int len_n = data.dist(data.gen); 
+					int content_n;
+
+					for (int i=0; i < len_n; i++){
+						content_n = data.dist(data.gen);
+
+						if ((content_n & 1) == 0)
+							obs_val.push_back('_');
+						else
+							obs_val.push_back('o');
+					}	
+
+				} while (token_map.find(obs_val) != token_map.end());
+
+				
+				// std::string val ("__obs_n" + std::to_string(data.var_count));
 			
-				token_map.insert( {token, val} );
+				token_map.insert( {token, obs_val} );
 				data.var_count++;
-				new_fcontent += val;
+				new_fcontent += obs_val;
 				
 			} else {
 				data.next_token_is_attr = false;
@@ -76,10 +101,13 @@ bool token_captured(std::string &token, char_set &non_captures, char c){
 	return capt_prereq;
 }
 
-void init_obfusdata(struct obfusdata &data){
+void init_obfusdata(struct obfusdata &data, std::default_random_engine &gen, std::uniform_int_distribution<int> &dist){
 	data.var_count = 0;
 	data.next_token_is_attr = false; 
 	data.last_char = '\0'; 
+
+	data.gen = gen; 
+	data.dist = dist;
 }
 
 void avoid_imports(struct obfusdata &data, std::string &new_fcontent, std::string::iterator &f_ptr, char c){
@@ -116,8 +144,14 @@ void obfuscate(std::string &fcontent, std::string &new_fcontent, str_set &resv_w
 	std::regex re_non_space ("[ \t\r\f]");
 	std::regex re_eol_ids ("[{};]");
 
+	unsigned rng_seed = std::chrono::system_clock::now().time_since_epoch().count();
+	std::default_random_engine gen (rng_seed);
+
+	// set arbitrarily 
+	std::uniform_int_distribution<int> dist(5,12);
+
 	obfusdata data; 
-	init_obfusdata(data);
+	init_obfusdata(data, gen, dist);
 	std::string _c, tmp;					// char as a string for regex matching
 
 	while (f_ptr != f_end){
@@ -129,7 +163,7 @@ void obfuscate(std::string &fcontent, std::string &new_fcontent, str_set &resv_w
 		bool is_space_char = std::regex_match(_c, re_non_space); 
 
 		if ( token_captured(token, non_captures, c) ){
-			process_token(token, new_fcontent, resv_words, token_map, data);
+			process_token(token, new_fcontent, resv_words, token_map, data, c);
 
 			data.last_token.clear();
 			data.last_token.append(token); 
