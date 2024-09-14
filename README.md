@@ -1,6 +1,6 @@
 # cli-tools 
 
-A collection of command line tools for linux written in C/C++ for personal use and to better understand how existing tools, protocols, and concepts work. Some of this software is unfinished, *please* don't have any high expectations. 
+A collection of command line tools written in C/C++ for personal use and to better understand how existing tools, protocols, and concepts work. Some of this software is unfinished, *please* don't have any high expectations. 
 
 
 ## Current tools available 
@@ -39,9 +39,10 @@ A collection of command line tools for linux written in C/C++ for personal use a
   * currently supports only GET and POST
   * supports IPv6
 
-<!-- * obfuscator (\*)
+* obfuscator (\*)
   * remove whitespace and rename variables of code files 
-  * supports obfuscating the following languages:   -->
+  * supports obfuscating the following languages:  
+    * JavaScript
 
 * ping 
   * simple ping tool that uses ICMP to check if a host is online (only ipv4 at the moment)
