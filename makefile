@@ -1,6 +1,6 @@
 
-SRC_DIR = src
-BIN_DIR = bin
+SRC = src/
+BUILD = bin/
 
 CC = gcc
 CXX = g++
@@ -11,59 +11,85 @@ CPPFLAGS = -Wall -Wextra -Wpedantic -std=c++11 -O2
 THREADS = -pthread
 MATH = -lm
 
-COMMONS = 	$(SRC_DIR)/common.c
-IMGS	= 	$(SRC_DIR)/png.c
-CRYPTO 	= 	$(SRC_DIR)/kcrypto.clnet
-INET =  	$(SRC_DIR)/inetutils.c
-LOG  =  	$(SRC_DIR)/logging.c
-NTL  =      $(SRC_DIR)/nlutils.c
-
 all: 	mk-bin-dir 		\
-	 	port-scanner 	\
-	 	ip-info 		\
-	 	ip-info-v2 		\
-	 	png-inspector 	\
-	 	stego-v1 		\
+	 	portscan 		\
+	 	ipinfo 			\
+	 	ipinfov2 		\
+	 	pnginspector 	\
+	 	stegoV1 		\
 	 	minserver 		\
 	 	ping			\
 	 	lines			\
 	 	grepl			\
+	 	obfuscator		\
 
 mk-bin-dir:
 	mkdir -p bin 
 
-# HEADERS AND FUNCTIONS ?
 
-# CLI TOOLS 
-port-scanner: 
-	$(CC) $(CFLAGS) $(COMMONS) $(THREADS) $(INET) -o $(BIN_DIR)/portscan $(SRC_DIR)/portscanner.c  
+# CLI TOOLS RULES
 
-ip-info: 
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/ipinfov1 $(SRC_DIR)/ipinfoV1.c
+PORTSCAN_FILES= $(addprefix $(SRC), inetutils.c common.c portscanner.c)
 
-ip-info-v2:
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/ipinfov2 $(SRC_DIR)/ipinfoV2.c
+portscan: $(PORTSCAN_FILES) 
+	$(CC) $(CFLAGS) $^ -o $(BUILD)$@ $(THREADS) 
 
-png-inspector:
-	$(CC) $(CFLAGS) $(IMGS) -o $(BIN_DIR)/pnginspect $(SRC_DIR)/pnginspect.c
 
-stego-v1: 
-	$(CC) $(CFLAGS) $(COMMONS) $(IMGS) $(SRC_DIR)/stegoV1.c -o $(BIN_DIR)/stegov1
+IPINFO1=$(addprefix $(SRC), ipinfoV1.c)
 
-minserver:
-	$(CC) $(CFLAGS) $(MATH) $(THREADS) $(COMMONS) $(LOG) $(INET) $(SRC_DIR)/minserver.c -o $(BIN_DIR)/minserver
+ipinfo: $(IPINFO1)
+	$(CC) $(CFLAGS) $< -o $(BUILD)$@
 
-ping:
-	$(CC) $(CFLAGS) $(INET) $(COMMONS) $(SRC_DIR)/ping.c -o $(BIN_DIR)/ping
 
-kcrypto: 
-	$(CC) $(CFLAGS) $(COMMONS) $(NTL) $(SRC_DIR)/kcrypto.c -o $(BIN_DIR)/kcrypto
+IPINFO2=$(addprefix $(SRC), ipinfoV2.c)
 
-lines:
-	$(CXX) $(CPPFLAGS) $(SRC_DIR)/lines.cc -o $(BIN_DIR)/lines 
+ipinfov2: $(IPINFO2)
+	$(CC) $(CFLAGS) $< -o $(BUILD)$@
 
-grepl:
-	$(CXX) $(CPPFLAGS) src/grepl.cc -o bin/grepl
 
-obfuscator:
-	$(CXX) $(CPPFLAGS) src/obfuscator.cc -o bin/obfuscator
+PNG_INSPECT_FILES= $(addprefix $(SRC), png.c pnginspect.c)
+
+pnginspector: $(PNG_INSPECT_FILES)
+	$(CC) $(CFLAGS) $^ -o $(BUILD)$@
+
+
+STEGOV1=$(addprefix $(SRC), common.c png.c stegoV1.c)
+
+stegoV1: $(STEGOV1)
+	$(CC) $(CFLAGS) $^ -o $(BUILD)$@
+
+
+MINSRV_FILES=$(addprefix $(SRC), inetutils.c common.c logging.c minserver.c)
+
+minserver: $(MINSRV_FILES)
+	$(CC) $(CFLAGS) $^ -o $(BUILD)$@ $(MATH) $(THREADS)
+
+
+PING_FILES=$(addprefix $(SRC), inetutils.c common.c ping.c)
+
+ping: $(PING_FILES)
+	$(CC) $(CFLAGS) $^ -o $(BUILD)$@
+
+
+KCRYPTO_FILES=$(addprefix $(SRC), common.c nlutils.c kcrypto.c)
+
+kcrypto: $(KCRYPTO_FILES)
+	$(CC) $(CFLAGS) $^ -o $(BUILD)$@
+
+
+LINE_FILES=$(addprefix $(SRC), lines.cc)
+
+lines: $(LINE_FILES)
+	$(CXX) $(CPPFLAGS) $< -o $(BUILD)$@
+
+
+GREPL_FILES=$(addprefix $(SRC), grepl.cc)
+
+grepl: $(GREPL_FILES)
+	$(CXX) $(CPPFLAGS) $< -o $(BUILD)$@
+
+
+OBFUS_FILES =$(addprefix $(SRC), obfuscator.cc)
+
+obfuscator: $(OBFUS_FILES)
+	$(CXX) $(CPPFLAGS) $< -o $(BUILD)$@
